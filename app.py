@@ -11,6 +11,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import uuid
 import base64
+import threading
+import time
 
 # Configure Django settings
 settings.configure(
@@ -33,11 +35,15 @@ settings.configure(
     DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024,
 )
 
-# Message storage files
+# Configuration variables
 CHAT_FILE = 'chat_messages.txt'
 BULLETIN_FILE = 'bulletin_board.txt'
 UPLOAD_DIR = 'uploads'
+BASE_URL = "http://localhost:8000"  # Change this to your public URL if needed
+USE_LOCALTUNNEL = True  # Set to False to disable localtunnel
+LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
 
+# Message storage files
 # Ensure files and directories exist
 for file in [CHAT_FILE, BULLETIN_FILE]:
     if not os.path.exists(file):
@@ -105,6 +111,31 @@ def save_uploaded_file(uploaded_file):
             destination.write(chunk)
     
     return filename, f"/download/{filename}"
+
+# LocalTunnel functions
+def start_localtunnel():
+    """Start localtunnel in a separate thread"""
+    def run_localtunnel():
+        # Wait a moment for Django to start
+        time.sleep(3)
+        
+        try:
+            cmd = 'lt --port 8000'
+            if LOCALTUNNEL_SUBDOMAIN:
+                cmd = f'lt --port 8000 --subdomain {LOCALTUNNEL_SUBDOMAIN}'
+            
+            print("Starting localtunnel...")
+            print(f"Command: {cmd}")
+            
+            # Use os.system to execute the command
+            os.system(cmd)
+                
+        except Exception as e:
+            print(f"Error starting localtunnel: {e}")
+    
+    if USE_LOCALTUNNEL:
+        thread = threading.Thread(target=run_localtunnel, daemon=True)
+        thread.start()
 
 # Views
 def chat_view(request):
@@ -599,6 +630,9 @@ if __name__ == '__main__':
     import sys
     from django.core.management import execute_from_command_line
     
+    # Start localtunnel if enabled
+    start_localtunnel()
+    
     # Check if we're running with the runserver command
     if len(sys.argv) > 1 and sys.argv[1] == 'runserver':
         execute_from_command_line(sys.argv)
@@ -609,9 +643,14 @@ if __name__ == '__main__':
         print(f"Bulletin board stored in: {os.path.abspath(BULLETIN_FILE)}")
         print(f"Uploaded files stored in: {os.path.abspath(UPLOAD_DIR)}")
         print("To update the bulletin board, edit the bulletin_board.txt file")
-        print("\nTo expose your server to the internet, install localtunnel:")
-        print("npm install -g localtunnel")
-        print("Then run: lt --port 8000")
+        
+        if USE_LOCALTUNNEL:
+            print("\nLocaltunnel is enabled. It will start automatically.")
+            print("If localtunnel is not installed, you can install it with:")
+            print("npm install -g localtunnel")
+        else:
+            print("\nLocaltunnel is disabled. To enable it, set USE_LOCALTUNNEL = True")
+        
         print("\nAPI endpoints available:")
         print("GET  /api/chat/     - Retrieve all chat messages")
         print("POST /api/chat/     - Post a new chat message")
