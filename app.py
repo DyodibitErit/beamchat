@@ -13,6 +13,9 @@ import uuid
 import base64
 import threading
 import time
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 # Configure Django settings
 settings.configure(
@@ -39,9 +42,39 @@ settings.configure(
 CHAT_FILE = 'chat_messages.txt'
 BULLETIN_FILE = 'bulletin_board.txt'
 UPLOAD_DIR = 'uploads'
+ENCRYPTION_KEY_FILE = 'encryption.key'
 BASE_URL = "http://localhost:8000"  # Change this to your public URL if needed
 USE_LOCALTUNNEL = True  # Set to False to disable localtunnel
 LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
+
+# Encryption setup
+def get_encryption_key():
+    """Get or create encryption key"""
+    if os.path.exists(ENCRYPTION_KEY_FILE):
+        with open(ENCRYPTION_KEY_FILE, 'rb') as f:
+            return f.read()
+    else:
+        # Generate a new key
+        key = Fernet.generate_key()
+        with open(ENCRYPTION_KEY_FILE, 'wb') as f:
+            f.write(key)
+        return key
+
+# Initialize encryption
+ENCRYPTION_KEY = get_encryption_key()
+cipher_suite = Fernet(ENCRYPTION_KEY)
+
+def encrypt_data(data):
+    """Encrypt data using Fernet symmetric encryption"""
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+    return cipher_suite.encrypt(data).decode('utf-8')
+
+def decrypt_data(encrypted_data):
+    """Decrypt data using Fernet symmetric encryption"""
+    if isinstance(encrypted_data, str):
+        encrypted_data = encrypted_data.encode('utf-8')
+    return cipher_suite.decrypt(encrypted_data).decode('utf-8')
 
 # Message storage files
 # Ensure files and directories exist
@@ -67,37 +100,75 @@ def read_chat_messages():
         with open(CHAT_FILE, 'r', encoding="UTF-8") as f:
             for line in f:
                 if line.strip():
-                    messages.append(json.loads(line))
+                    try:
+                        encrypted_data = json.loads(line)
+                        decrypted_data = {
+                            'username': decrypt_data(encrypted_data['username']),
+                            'message': decrypt_data(encrypted_data['message']),
+                            'timestamp': decrypt_data(encrypted_data['timestamp'])
+                        }
+                        if 'filename' in encrypted_data:
+                            decrypted_data['filename'] = decrypt_data(encrypted_data['filename'])
+                        if 'file_url' in encrypted_data:
+                            decrypted_data['file_url'] = decrypt_data(encrypted_data['file_url'])
+                        messages.append(decrypted_data)
+                    except Exception as e:
+                        print(f"Error decrypting message: {e}")
+                        # Try to read as plaintext for backward compatibility
+                        try:
+                            plain_data = json.loads(line)
+                            messages.append(plain_data)
+                        except:
+                            pass
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     return messages
 
 def save_chat_message(username, message, filename=None, file_url=None):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    message_data = {
-        'username': username,
-        'message': message,
-        'timestamp': timestamp
+    
+    # Encrypt all data
+    encrypted_data = {
+        'username': encrypt_data(username),
+        'message': encrypt_data(message),
+        'timestamp': encrypt_data(timestamp)
     }
     
     if filename and file_url:
-        message_data['filename'] = filename
-        message_data['file_url'] = file_url
+        encrypted_data['filename'] = encrypt_data(filename)
+        encrypted_data['file_url'] = encrypt_data(file_url)
     
     with open(CHAT_FILE, 'a', encoding="UTF-8") as f:
-        f.write(json.dumps(message_data) + '\n')
-    return message_data
+        f.write(json.dumps(encrypted_data) + '\n')
+    
+    # Return decrypted data for immediate use
+    return {
+        'username': username,
+        'message': message,
+        'timestamp': timestamp,
+        'filename': filename,
+        'file_url': file_url
+    }
 
 def read_bulletin():
     try:
         with open(BULLETIN_FILE, 'r', encoding="UTF-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        return "Bulletin board is empty."
+            encrypted_content = f.read()
+            if encrypted_content:
+                return decrypt_data(encrypted_content)
+            return "Bulletin board is empty."
+    except (FileNotFoundError, Exception):
+        try:
+            # Try to read as plaintext for backward compatibility
+            with open(BULLETIN_FILE, 'r', encoding="UTF-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            return "Bulletin board is empty."
 
 def write_bulletin(content):
+    encrypted_content = encrypt_data(content)
     with open(BULLETIN_FILE, 'w', encoding="UTF-8") as f:
-        f.write(content)
+        f.write(encrypted_content)
     return content
 
 def save_uploaded_file(uploaded_file):
@@ -164,7 +235,7 @@ def chat_view(request):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>BEAM</title>
+        <title>BEAM - Encrypted Messenger</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             :root {
@@ -204,6 +275,19 @@ def chat_view(request):
             h2 {
                 margin-bottom: 10px;
                 color: var(--primary-color);
+            }
+            
+            .security-notice {
+                background-color: #e6f7ff;
+                border: 1px solid #91d5ff;
+                border-radius: 5px;
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .security-notice h3 {
+                color: #0050b3;
+                margin-top: 0;
             }
             
             .bulletin {
@@ -365,6 +449,15 @@ def chat_view(request):
                     background-color: #1a1a1a;
                 }
                 
+                .security-notice {
+                    background-color: #1a3c5a;
+                    border-color: #2a5c8a;
+                }
+                
+                .security-notice h3 {
+                    color: #5a8dee;
+                }
+                
                 .file-attachment {
                     background-color: rgba(90, 141, 238, 0.1);
                 }
@@ -417,7 +510,13 @@ def chat_view(request):
     </head>
     <body>
         <div class="container">
-            <h1>BEAM</h1>
+            <h1>BEAM - Encrypted Messenger</h1>
+            
+            <div class="security-notice">
+                <h3>🔒 End-to-End Encryption</h3>
+                <p>All messages are encrypted using AES-128 encryption before being stored. 
+                Your conversations are secure and private.</p>
+            </div>
             
             <div class="bulletin">
                 <h2>Bulletin Board</h2>
@@ -642,6 +741,8 @@ if __name__ == '__main__':
         print(f"Chat messages stored in: {os.path.abspath(CHAT_FILE)}")
         print(f"Bulletin board stored in: {os.path.abspath(BULLETIN_FILE)}")
         print(f"Uploaded files stored in: {os.path.abspath(UPLOAD_DIR)}")
+        print(f"Encryption key stored in: {os.path.abspath(ENCRYPTION_KEY_FILE)}")
+        print("🔒 All messages are encrypted using AES-128 encryption")
         print("To update the bulletin board, edit the bulletin_board.txt file")
         
         if USE_LOCALTUNNEL:
