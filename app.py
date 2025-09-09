@@ -16,6 +16,8 @@ import time
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+import hashlib
+import hmac
 
 # Configure Django settings
 settings.configure(
@@ -34,15 +36,17 @@ settings.configure(
         },
     ],
     STATIC_URL='/static/',
-    # Увеличим максимальный размер загружаемых файлов (10 МБ)
+    # Увеличим максимальный размер загружаемых файлов (50 МБ)
     DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024,
 )
 
 # Configuration variables
 CHAT_FILE = 'chat_messages.txt'
 BULLETIN_FILE = 'bulletin_board.txt'
+USERS_FILE = 'users.json'
 UPLOAD_DIR = 'uploads'
 ENCRYPTION_KEY_FILE = 'encryption.key'
+SESSION_COOKIE_NAME = 'beam_session'
 BASE_URL = "http://localhost:8000"  # Change this to your public URL if needed
 USE_LOCALTUNNEL = True  # Set to False to disable localtunnel
 LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
@@ -78,10 +82,13 @@ def decrypt_data(encrypted_data):
 
 # Message storage files
 # Ensure files and directories exist
-for file in [CHAT_FILE, BULLETIN_FILE]:
+for file in [CHAT_FILE, BULLETIN_FILE, USERS_FILE]:
     if not os.path.exists(file):
         with open(file, 'w') as f:
-            f.write('')
+            if file == USERS_FILE:
+                f.write('{}')
+            else:
+                f.write('')
 
 # Create upload directory if it doesn't exist
 if not os.path.exists(UPLOAD_DIR):
@@ -89,9 +96,135 @@ if not os.path.exists(UPLOAD_DIR):
 
 # Forms
 class ChatMessageForm(forms.Form):
-    username = forms.CharField(max_length=50)
     message = forms.CharField(widget=forms.Textarea, required=False)
     file = forms.FileField(required=False)
+
+class LoginForm(forms.Form):
+    username = forms.CharField(max_length=50)
+    password = forms.CharField(widget=forms.PasswordInput)
+
+class RegisterForm(forms.Form):
+    username = forms.CharField(max_length=50)
+    password = forms.CharField(widget=forms.PasswordInput)
+    confirm_password = forms.CharField(widget=forms.PasswordInput)
+
+# User management functions
+def hash_password(password, salt=None):
+    """Hash a password with a salt using PBKDF2"""
+    if salt is None:
+        salt = os.urandom(16)
+    
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+    )
+    hashed = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+    return f"{base64.b64encode(salt).decode('utf-8')}${hashed.decode('utf-8')}"
+
+def verify_password(stored_password, provided_password):
+    """Verify a password against a stored hash"""
+    try:
+        salt_b64, hashed = stored_password.split('$')
+        salt = base64.b64decode(salt_b64)
+        
+        new_hash = hash_password(provided_password, salt)
+        return hmac.compare_digest(stored_password, new_hash)
+    except:
+        return False
+
+def read_users():
+    """Read users from the encrypted users file"""
+    try:
+        with open(USERS_FILE, 'r', encoding="UTF-8") as f:
+            encrypted_data = f.read()
+            if encrypted_data:
+                decrypted_data = decrypt_data(encrypted_data)
+                return json.loads(decrypted_data)
+            return {}
+    except (FileNotFoundError, Exception):
+        # Try to read as plaintext for backward compatibility
+        try:
+            with open(USERS_FILE, 'r', encoding="UTF-8") as f:
+                plain_data = f.read()
+                if plain_data:
+                    return json.loads(plain_data)
+                return {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+def save_users(users):
+    """Save users to the encrypted users file"""
+    encrypted_data = encrypt_data(json.dumps(users))
+    with open(USERS_FILE, 'w', encoding="UTF-8") as f:
+        f.write(encrypted_data)
+
+def create_user(username, password):
+    """Create a new user"""
+    users = read_users()
+    if username in users:
+        return False, "Username already exists"
+    
+    users[username] = {
+        'password_hash': hash_password(password),
+        'created_at': datetime.now().isoformat(),
+        'last_login': None
+    }
+    save_users(users)
+    return True, "User created successfully"
+
+def authenticate_user(username, password):
+    """Authenticate a user"""
+    users = read_users()
+    if username not in users:
+        return False, "User not found"
+    
+    if not verify_password(users[username]['password_hash'], password):
+        return False, "Invalid password"
+    
+    # Update last login
+    users[username]['last_login'] = datetime.now().isoformat()
+    save_users(users)
+    
+    return True, "Authentication successful"
+
+def get_user(username):
+    """Get user information"""
+    users = read_users()
+    return users.get(username)
+
+# Session management
+def create_session(response, username):
+    """Create a session for the user"""
+    session_id = str(uuid.uuid4())
+    session_data = {
+        'username': username,
+        'created_at': datetime.now().isoformat()
+    }
+    
+    # In a real application, we'd store this in a database
+    # For simplicity, we'll just set a cookie with encrypted data
+    encrypted_session = encrypt_data(json.dumps(session_data))
+    response.set_cookie(SESSION_COOKIE_NAME, encrypted_session, max_age=3600*24*7)  # 1 week
+    return response
+
+def get_session(request):
+    """Get session data from request"""
+    session_cookie = request.COOKIES.get(SESSION_COOKIE_NAME)
+    if not session_cookie:
+        return None
+    
+    try:
+        session_data = json.loads(decrypt_data(session_cookie))
+        return session_data
+    except:
+        return None
+
+def logout_user(response):
+    """Log out user by clearing session cookie"""
+    response.delete_cookie(SESSION_COOKIE_NAME)
+    return response
 
 # Utility functions
 def read_chat_messages():
@@ -209,11 +342,356 @@ def start_localtunnel():
         thread.start()
 
 # Views
+def login_view(request):
+    session = get_session(request)
+    if session and 'username' in session:
+        return HttpResponseRedirect('/')
+    
+    if request.method == 'POST':
+        form = LoginForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password']
+            
+            success, message = authenticate_user(username, password)
+            if success:
+                response = HttpResponseRedirect('/')
+                return create_session(response, username)
+            else:
+                form.add_error(None, message)
+    else:
+        form = LoginForm()
+    
+    template = Template('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - Login</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            :root {
+                --primary-color: #3366cc;
+                --secondary-color: #f9f9f9;
+                --border-color: #ddd;
+                --text-color: #333;
+                --light-text: #999;
+            }
+            
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            
+            body { 
+                font-family: Arial, sans-serif; 
+                background-color: #f5f5f5;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                padding: 20px;
+            }
+            
+            .login-container {
+                background-color: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                width: 100%;
+                max-width: 400px;
+            }
+            
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: var(--primary-color);
+            }
+            
+            .error {
+                color: #d9534f;
+                margin-bottom: 15px;
+                padding: 10px;
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 4px;
+            }
+            
+            form {
+                margin-top: 20px;
+            }
+            
+            input { 
+                display: block; 
+                margin-bottom: 15px; 
+                width: 100%;
+                padding: 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                font-family: inherit;
+                font-size: 1em;
+            }
+            
+            input:focus {
+                outline: none;
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.2);
+            }
+            
+            button { 
+                background-color: var(--primary-color);
+                color: white;
+                border: none;
+                padding: 12px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: background-color 0.3s;
+                width: 100%;
+            }
+            
+            button:hover {
+                background-color: #254e9e;
+            }
+            
+            .register-link {
+                text-align: center;
+                margin-top: 20px;
+            }
+            
+            .register-link a {
+                color: var(--primary-color);
+                text-decoration: none;
+            }
+            
+            .register-link a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="login-container">
+            <h1>BEAM Login</h1>
+            
+            {% if form.non_field_errors %}
+            <div class="error">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <form method="post">
+                {% csrf_token %}
+                <input type="text" name="username" placeholder="Username" required value="{{ form.username.value|default:'' }}">
+                <input type="password" name="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            
+            <div class="register-link">
+                <p>Don't have an account? <a href="/register">Register here</a></p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ''')
+    
+    context = Context({'form': form})
+    return HttpResponse(template.render(context))
+
+def register_view(request):
+    session = get_session(request)
+    if session and 'username' in session:
+        return HttpResponseRedirect('/')
+    
+    if request.method == 'POST':
+        form = RegisterForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password']
+            confirm_password = form.cleaned_data['confirm_password']
+            
+            if password != confirm_password:
+                form.add_error('confirm_password', 'Passwords do not match')
+            else:
+                success, message = create_user(username, password)
+                if success:
+                    response = HttpResponseRedirect('/')
+                    return create_session(response, username)
+                else:
+                    form.add_error(None, message)
+    else:
+        form = RegisterForm()
+    
+    template = Template('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - Register</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            :root {
+                --primary-color: #3366cc;
+                --secondary-color: #f9f9f9;
+                --border-color: #ddd;
+                --text-color: #333;
+                --light-text: #999;
+            }
+            
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            
+            body { 
+                font-family: Arial, sans-serif; 
+                background-color: #f5f5f5;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                padding: 20px;
+            }
+            
+            .register-container {
+                background-color: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                width: 100%;
+                max-width: 400px;
+            }
+            
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: var(--primary-color);
+            }
+            
+            .error {
+                color: #d9534f;
+                margin-bottom: 15px;
+                padding: 10px;
+                background-color: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 4px;
+            }
+            
+            .field-error {
+                color: #d9534f;
+                font-size: 0.9em;
+                margin-top: -10px;
+                margin-bottom: 15px;
+            }
+            
+            form {
+                margin-top: 20px;
+            }
+            
+            input { 
+                display: block; 
+                margin-bottom: 5px; 
+                width: 100%;
+                padding: 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                font-family: inherit;
+                font-size: 1em;
+            }
+            
+            input:focus {
+                outline: none;
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.2);
+            }
+            
+            button { 
+                background-color: var(--primary-color);
+                color: white;
+                border: none;
+                padding: 12px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: background-color 0.3s;
+                width: 100%;
+            }
+            
+            button:hover {
+                background-color: #254e9e;
+            }
+            
+            .login-link {
+                text-align: center;
+                margin-top: 20px;
+            }
+            
+            .login-link a {
+                color: var(--primary-color);
+                text-decoration: none;
+            }
+            
+            .login-link a:hover {
+                text-decoration: underline;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="register-container">
+            <h1>BEAM Register</h1>
+            
+            {% if form.non_field_errors %}
+            <div class="error">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <form method="post">
+                {% csrf_token %}
+                <input type="text" name="username" placeholder="Username" required value="{{ form.username.value|default:'' }}">
+                {% if form.username.errors %}
+                    <div class="field-error">{{ form.username.errors.0 }}</div>
+                {% endif %}
+                
+                <input type="password" name="password" placeholder="Password" required>
+                {% if form.password.errors %}
+                    <div class="field-error">{{ form.password.errors.0 }}</div>
+                {% endif %}
+                
+                <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+                {% if form.confirm_password.errors %}
+                    <div class="field-error">{{ form.confirm_password.errors.0 }}</div>
+                {% endif %}
+                
+                <button type="submit">Register</button>
+            </form>
+            
+            <div class="login-link">
+                <p>Already have an account? <a href="/login">Login here</a></p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ''')
+    
+    context = Context({'form': form})
+    return HttpResponse(template.render(context))
+
+def logout_view(request):
+    response = HttpResponseRedirect('/login')
+    return logout_user(response)
+
 def chat_view(request):
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    
     if request.method == 'POST':
         form = ChatMessageForm(request.POST, request.FILES)
         if form.is_valid():
-            username = form.cleaned_data['username']
             message = form.cleaned_data['message']
             uploaded_file = form.cleaned_data.get('file')
             
@@ -264,6 +742,40 @@ def chat_view(request):
             .container {
                 max-width: 800px;
                 margin: 0 auto;
+            }
+            
+            .user-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .user-info {
+                display: flex;
+                align-items: center;
+            }
+            
+            .welcome {
+                margin-right: 15px;
+                font-weight: bold;
+            }
+            
+            .logout-btn {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                padding: 8px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                text-decoration: none;
+                font-size: 0.9em;
+            }
+            
+            .logout-btn:hover {
+                background-color: #c82333;
             }
             
             h1 {
@@ -433,6 +945,15 @@ def chat_view(request):
                 .bulletin, .chat, form {
                     padding: 10px;
                 }
+                
+                .user-header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+                
+                .user-info {
+                    margin-bottom: 10px;
+                }
             }
             
             /* Dark mode support */
@@ -510,6 +1031,13 @@ def chat_view(request):
     </head>
     <body>
         <div class="container">
+            <div class="user-header">
+                <div class="user-info">
+                    <span class="welcome">Welcome, {{ username }}!</span>
+                </div>
+                <a href="/logout" class="logout-btn">Logout</a>
+            </div>
+            
             <h1>BEAM - Encrypted Messenger</h1>
             
             <div class="security-notice">
@@ -548,7 +1076,6 @@ def chat_view(request):
             
             <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
-                <input type="text" name="username" placeholder="Your name" required>
                 <textarea name="message" placeholder="Your message" rows="3"></textarea>
                 <div class="file-input">
                     <label for="file">Attach a file (optional):</label>
@@ -612,6 +1139,7 @@ def chat_view(request):
     ''')
     
     context = Context({
+        'username': username,
         'messages': messages,
         'bulletin_content': bulletin_content,
         'bulletin_file': BULLETIN_FILE
@@ -713,14 +1241,20 @@ def api_upload(request):
     }, status=201)
 
 # URL patterns
+# URL patterns
 urlpatterns = [
-    path('', chat_view),
+    path('', chat_view, name='home'),
+    path('login/', login_view, name='login'),
+    path('login', login_view),  # Add this line to handle /login without slash
+    path('register/', register_view, name='register'),
+    path('register', register_view),  # Add this line to handle /register without slash
+    path('logout/', logout_view, name='logout'),
+    path('logout', logout_view),  # Add this line to handle /logout without slash
     path('api/chat/', api_chat),
     path('api/bulletin/', api_bulletin),
     path('api/upload/', api_upload),
     path('download/<str:filename>', download_file),
 ]
-
 # Application object
 application = get_wsgi_application()
 
@@ -740,9 +1274,10 @@ if __name__ == '__main__':
         print("Starting Django server...")
         print(f"Chat messages stored in: {os.path.abspath(CHAT_FILE)}")
         print(f"Bulletin board stored in: {os.path.abspath(BULLETIN_FILE)}")
+        print(f"User data stored in: {os.path.abspath(USERS_FILE)}")
         print(f"Uploaded files stored in: {os.path.abspath(UPLOAD_DIR)}")
         print(f"Encryption key stored in: {os.path.abspath(ENCRYPTION_KEY_FILE)}")
-        print("🔒 All messages are encrypted using AES-128 encryption")
+        print("🔒 All messages and user data are encrypted using AES-128 encryption")
         print("To update the bulletin board, edit the bulletin_board.txt file")
         
         if USE_LOCALTUNNEL:
