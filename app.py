@@ -54,7 +54,7 @@ ENCRYPTION_KEY_FILE = 'encryption.key'
 SESSION_COOKIE_NAME = 'beam_session'
 BASE_URL = "http://localhost:8000"  # Change this to your public URL if needed
 USE_LOCALTUNNEL = True  # Set to False to disable localtunnel
-LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
+LOCALTUNNEL_SUBDOMAIN = "beamchat-indev-test"  # Set to a specific subdomain if desired
 
 # Encryption setup
 def get_encryption_key():
@@ -1014,43 +1014,30 @@ def profile_view(request):
     
     return HttpResponse(template.render(context))
 
-def chat_view(request):
+def user_profile_view(request, username):
+    """View for displaying other users' profiles"""
     session = get_session(request)
     if not session or 'username' not in session:
         return HttpResponseRedirect('/login')
     
-    username = session['username']
+    # Get the requested user's information
+    user = get_user(username)
+    if not user:
+        return HttpResponse('User not found', status=404)
+    
     profile_pic_url = get_profile_picture_url(username)
     
-    if request.method == 'POST':
-        form = ChatMessageForm(request.POST, request.FILES)
-        if form.is_valid():
-            message = form.cleaned_data['message']
-            uploaded_file = form.cleaned_data.get('file')
-            
-            filename = None
-            file_url = None
-            
-            if uploaded_file:
-                filename, file_url = save_uploaded_file(uploaded_file)
-            
-            save_chat_message(username, message, filename, file_url)
-            return HttpResponseRedirect('/')
-    else:
-        form = ChatMessageForm()
-    
-    messages = read_chat_messages()
-    bulletin_content = read_bulletin()
-    
-    # Add profile picture URLs to messages
-    for msg in messages:
-        msg['profile_pic_url'] = get_profile_picture_url(msg['username'])
+    # Format the registration date
+    try:
+        reg_date = datetime.fromisoformat(user['created_at']).strftime('%B %d, %Y')
+    except:
+        reg_date = "Unknown date"
     
     template = Template('''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>BEAM - Encrypted Messenger</title>
+        <title>BEAM - {{ username }}'s Profile</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             :root {
@@ -1069,16 +1056,17 @@ def chat_view(request):
             
             body { 
                 font-family: Arial, sans-serif; 
-                max-width: 100%; 
-                margin: 0 auto; 
-                padding: 15px;
-                color: var(--text-color);
-                line-height: 1.6;
+                background-color: #f5f5f5;
+                padding: 20px;
             }
             
             .container {
-                max-width: 800px;
+                max-width: 600px;
                 margin: 0 auto;
+                background-color: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             }
             
             .user-header {
@@ -1095,17 +1083,214 @@ def chat_view(request):
                 align-items: center;
             }
             
-            .profile-pic-small {
-                width: 40px;
-                height: 40px;
+            .welcome {
+                margin-right: 15px;
+                font-weight: bold;
+            }
+            
+            .back-btn {
+                background-color: var(--primary-color);
+                color: white;
+                border: none;
+                padding: 8px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                text-decoration: none;
+                font-size: 0.9em;
+            }
+            
+            .back-btn:hover {
+                background-color: #254e9e;
+            }
+            
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: var(--primary-color);
+            }
+            
+            .profile-section {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                margin-bottom: 30px;
+            }
+            
+            .profile-picture {
+                width: 200px;
+                height: 200px;
                 border-radius: 50%;
                 object-fit: cover;
-                margin-right: 10px;
+                margin-bottom: 20px;
+                border: 3px solid var(--primary-color);
+            }
+            
+            .user-details {
+                text-align: center;
+                margin-bottom: 20px;
+            }
+            
+            .username-large {
+                font-size: 1.5em;
+                font-weight: bold;
+                margin-bottom: 10px;
+                color: var(--primary-color);
+            }
+            
+            .registration-date {
+                color: var(--light-text);
+                font-size: 0.9em;
+            }
+            
+            @media (max-width: 600px) {
+                .container {
+                    padding: 20px;
+                }
+                
+                .user-header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+                
+                .user-info {
+                    margin-bottom: 10px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="user-header">
+                <div class="user-info">
+                    <span class="welcome">Viewing Profile</span>
+                </div>
+                <a href="/" class="back-btn">Back to Chat</a>
+            </div>
+            
+            <h1>User Profile</h1>
+            
+            <div class="profile-section">
+                <img src="{{ profile_pic_url }}" alt="{{ username }}'s Profile Picture" class="profile-picture">
+                
+                <div class="user-details">
+                    <div class="username-large">{{ username }}</div>
+                    <div class="registration-date">Member since: {{ reg_date }}</div>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    ''')
+    
+    context = Context({
+        'username': username,
+        'profile_pic_url': profile_pic_url,
+        'reg_date': reg_date
+    })
+    
+    return HttpResponse(template.render(context))
+
+def index_view(request):
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    messages = read_chat_messages()
+    bulletin = read_bulletin()
+    
+    if request.method == 'POST':
+        form = ChatMessageForm(request.POST, request.FILES)
+        if form.is_valid():
+            message = form.cleaned_data['message']
+            uploaded_file = form.cleaned_data.get('file')
+            
+            filename = None
+            file_url = None
+            
+            if uploaded_file:
+                filename, file_url = save_uploaded_file(uploaded_file)
+            
+            if message or filename:
+                save_chat_message(username, message, filename, file_url)
+            
+            return HttpResponseRedirect('/')
+    else:
+        form = ChatMessageForm()
+    
+    template = Template('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM Chat</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            :root {
+                --primary-color: #3366cc;
+                --secondary-color: #f9f9f9;
+                --border-color: #ddd;
+                --text-color: #333;
+                --light-text: #999;
+            }
+            
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            
+            body { 
+                font-family: Arial, sans-serif; 
+                background-color: #f5f5f5;
+                padding: 20px;
+            }
+            
+            .container {
+                max-width: 1000px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 1fr 300px;
+                gap: 20px;
+            }
+            
+            @media (max-width: 768px) {
+                .container {
+                    grid-template-columns: 1fr;
+                }
+            }
+            
+            .chat-container, .bulletin-container {
+                background-color: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            }
+            
+            .user-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .user-info {
+                display: flex;
+                align-items: center;
             }
             
             .welcome {
                 margin-right: 15px;
                 font-weight: bold;
+            }
+            
+            .profile-pic {
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                object-fit: cover;
+                margin-right: 10px;
             }
             
             .profile-btn, .logout-btn {
@@ -1132,186 +1317,144 @@ def chat_view(request):
                 background-color: #c82333;
             }
             
-            h1 {
-                text-align: center;
-                margin-bottom: 20px;
-                color: var(--primary-color);
-            }
-            
-            .security-notice {
-                background-color: #e6f7ff;
-                border: 1px solid #91d5ff;
-                border-radius: 5px;
-                padding: 15px;
-                margin-bottom: 20px;
-            }
-            
-            .security-notice h3 {
-                color: #0050b3;
-                margin-top: 0;
-            }
-            
-            .bulletin {
-                background-color: var(--secondary-color);
-                padding: 15px;
-                border: 1px solid var(--border-color);
-                border-radius: 5px;
-                margin-bottom: 20px;
-            }
-            
-            .chat {
-                border: 1px solid var(--border-color);
-                border-radius: 5px;
-                padding: 10px;
-                margin-bottom: 20px;
-                max-height: 400px;
+            .chat-messages {
+                max-height: 500px;
                 overflow-y: auto;
+                margin-bottom: 20px;
+                padding: 10px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
             }
             
             .message {
-                margin-bottom: 10px;
+                margin-bottom: 15px;
                 padding: 10px;
-                border-bottom: 1px solid var(--border-color);
-                display: flex;
-            }
-            
-            .message:last-child {
-                border-bottom: none;
-            }
-            
-            .message-profile-pic {
-                width: 40px;
-                height: 40px;
-                border-radius: 50%;
-                object-fit: cover;
-                margin-right: 15px;
-                flex-shrink: 0;
-            }
-            
-            .message-content {
-                flex-grow: 1;
+                border-radius: 4px;
+                background-color: var(--secondary-color);
             }
             
             .message-header {
                 display: flex;
                 justify-content: space-between;
-                align-items: center;
                 margin-bottom: 5px;
-            }
-            
-            .username { 
-                font-weight: bold; 
-                color: var(--primary-color);
-            }
-            
-            .timestamp { 
-                font-size: 0.8em; 
+                font-size: 0.9em;
                 color: var(--light-text);
             }
             
+            .username {
+                font-weight: bold;
+                color: var(--primary-color);
+                text-decoration: none;
+            }
+            
+            .username:hover {
+                text-decoration: underline;
+            }
+            
+            .timestamp {
+                color: var(--light-text);
+            }
+            
+            .message-content {
+                margin-bottom: 5px;
+                word-break: break-word;
+            }
+            
             .file-attachment {
-                margin-top: 10px;
-                padding: 8px;
+                margin-top: 5px;
+                padding: 5px;
                 background-color: rgba(51, 102, 204, 0.1);
                 border-radius: 4px;
-                display: inline-block;
             }
             
             .file-attachment a {
                 color: var(--primary-color);
                 text-decoration: none;
-                display: flex;
-                align-items: center;
             }
             
             .file-attachment a:hover {
                 text-decoration: underline;
             }
             
-            .file-icon {
-                margin-right: 5px;
-                font-size: 1.2em;
-            }
-            
-            form { 
-                margin-top: 20px;
-                padding: 15px;
-                border: 1px solid var(--border-color);
-                border-radius: 5px;
-                background-color: var(--secondary-color);
-            }
-            
-            input, textarea, button, .file-input { 
-                display: block; 
-                margin-bottom: 15px; 
+            .chat-form textarea {
                 width: 100%;
                 padding: 10px;
                 border: 1px solid var(--border-color);
                 border-radius: 4px;
+                resize: vertical;
+                min-height: 80px;
+                margin-bottom: 10px;
                 font-family: inherit;
-                font-size: 1em;
             }
             
-            input:focus, textarea:focus {
-                outline: none;
-                border-color: var(--primary-color);
-                box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.2);
+            .file-input {
+                margin-bottom: 10px;
             }
             
-            button { 
+            .chat-form button {
                 background-color: var(--primary-color);
                 color: white;
                 border: none;
-                padding: 12px;
+                padding: 10px 20px;
+                border-radius: 4px;
                 cursor: pointer;
                 font-weight: bold;
                 transition: background-color 0.3s;
             }
             
-            button:hover {
+            .chat-form button:hover {
                 background-color: #254e9e;
             }
             
-            /* Mobile-first responsive design */
-            @media (min-width: 600px) {
-                body {
-                    padding: 20px;
-                }
-                
-                .message-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 5px;
-                }
-                
-                .username, .timestamp {
-                    display: inline;
-                    margin-bottom: 0;
-                }
-                
-                .timestamp {
-                    margin-left: 10px;
-                }
+            .bulletin-container h2 {
+                margin-bottom: 15px;
+                color: var(--primary-color);
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 10px;
             }
             
-            @media (max-width: 599px) {
-                h1 {
-                    font-size: 1.5em;
-                }
-                
-                h2 {
-                    font-size: 1.2em;
-                }
-                
-                .chat {
-                    max-height: 300px;
-                }
-                
-                .bulletin, .chat, form {
-                    padding: 10px;
-                }
-                
+            .bulletin-content {
+                white-space: pre-wrap;
+                word-break: break-word;
+                line-height: 1.5;
+            }
+            
+            .bulletin-form {
+                margin-top: 20px;
+            }
+            
+            .bulletin-form textarea {
+                width: 100%;
+                padding: 10px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                resize: vertical;
+                min-height: 100px;
+                margin-bottom: 10px;
+                font-family: inherit;
+            }
+            
+            .bulletin-form button {
+                background-color: var(--primary-color);
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: background-color 0.3s;
+            }
+            
+            .bulletin-form button:hover {
+                background-color: #254e9e;
+            }
+            
+            .btn-group {
+                display: flex;
+                gap: 10px;
+            }
+            
+            @media (max-width: 600px) {
                 .user-header {
                     flex-direction: column;
                     align-items: flex-start;
@@ -1321,363 +1464,194 @@ def chat_view(request):
                     margin-bottom: 10px;
                 }
                 
-                .message {
-                    flex-direction: column;
-                }
-                
-                .message-profile-pic {
-                    margin-right: 0;
-                    margin-bottom: 10px;
-                }
-                
                 .btn-group {
-                    display: flex;
-                    gap: 10px;
+                    flex-direction: column;
+                    width: 100%;
                 }
                 
                 .profile-btn, .logout-btn {
                     margin-left: 0;
+                    margin-bottom: 10px;
+                    text-align: center;
                 }
-            }
-            
-            /* Dark mode support */
-            @media (prefers-color-scheme: dark) {
-                :root {
-                    --primary-color: #5a8dee;
-                    --secondary-color: #2d2d2d;
-                    --border-color: #444;
-                    --text-color: #f0f0f0;
-                    --light-text: #aaa;
-                }
-                
-                body {
-                    background-color: #1a1a1a;
-                }
-                
-                .security-notice {
-                    background-color: #1a3c5a;
-                    border-color: #2a5c8a;
-                }
-                
-                .security-notice h3 {
-                    color: #5a8dee;
-                }
-                
-                .file-attachment {
-                    background-color: rgba(90, 141, 238, 0.1);
-                }
-            }
-            
-            /* API documentation styles */
-            .api-section {
-                margin-top: 40px;
-                padding: 20px;
-                border: 1px solid var(--border-color);
-                border-radius: 5px;
-                background-color: var(--secondary-color);
-            }
-            
-            .endpoint {
-                margin-bottom: 15px;
-                padding: 10px;
-                background-color: rgba(255, 255, 255, 0.1);
-                border-left: 4px solid var(--primary-color);
-            }
-            
-            .method {
-                display: inline-block;
-                padding: 3px 8px;
-                border-radius: 3px;
-                font-weight: bold;
-                margin-right: 10px;
-                font-size: 0.8em;
-            }
-            
-            .get { background-color: #61affe; color: white; }
-            .post { background-color: #49cc90; color: white; }
-            .put { background-color: #fca130; color: white; }
-            
-            code {
-                background-color: rgba(0, 0, 0, 0.1);
-                padding: 2px 5px;
-                border-radius: 3px;
-                font-family: monospace;
-            }
-            
-            pre {
-                background-color: rgba(0, 0, 0, 0.1);
-                padding: 10px;
-                border-radius: 5px;
-                overflow-x: auto;
-                margin: 10px 0;
-            }
-            
-            .btn-group {
-                display: flex;
             }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="user-header">
-                <div class="user-info">
-                    <img src="{{ profile_pic_url }}" alt="Profile Picture" class="profile-pic-small">
-                    <span class="welcome">Welcome, {{ username }}!</span>
+            <div class="chat-container">
+                <div class="user-header">
+                    <div class="user-info">
+                        <img src="{{ profile_pic_url }}" alt="Your Profile Picture" class="profile-pic">
+                        <span class="welcome">Welcome, {{ username }}!</span>
+                    </div>
+                    <div class="btn-group">
+                        <a href="/profile" class="profile-btn">Your Profile</a>
+                        <a href="/logout" class="logout-btn">Logout</a>
+                    </div>
                 </div>
-                <div class="btn-group">
-                    <a href="/profile" class="profile-btn">Profile</a>
-                    <a href="/logout" class="logout-btn">Logout</a>
-                </div>
-            </div>
-            
-            <h1>BEAM - Encrypted Messenger</h1>
-            
-            <div class="security-notice">
-                <h3>🔒 End-to-End Encryption</h3>
-                <p>All messages are encrypted using AES-128 encryption before being stored. 
-                Your conversations are secure and private.</p>
-            </div>
-            
-            <div class="bulletin">
-                <h2>Bulletin Board</h2>
-                <p>{{ bulletin_content|linebreaks }}</p>
-            </div>
-            
-            <h2>Chat</h2>
-            <div class="chat">
-                {% for msg in messages %}
-                <div class="message">
-                    <img src="{{ msg.profile_pic_url }}" alt="{{ msg.username }}" class="message-profile-pic">
-                    <div class="message-content">
+                
+                <div class="chat-messages">
+                    {% for msg in messages %}
+                    <div class="message">
                         <div class="message-header">
-                            <span class="username">{{ msg.username }}</span>
+                            <a href="/user/{{ msg.username }}" class="username">{{ msg.username }}</a>
                             <span class="timestamp">{{ msg.timestamp }}</span>
                         </div>
-                        <p>{{ msg.message }}</p>
+                        {% if msg.message %}
+                        <div class="message-content">{{ msg.message }}</div>
+                        {% endif %}
                         {% if msg.filename and msg.file_url %}
                         <div class="file-attachment">
-                            <a href="{{ msg.file_url }}" target="_blank">
-                                <span class="file-icon">📎</span>
-                                {{ msg.filename }}
-                            </a>
+                            📎 <a href="{{ msg.file_url }}" target="_blank">{{ msg.filename }}</a>
                         </div>
                         {% endif %}
                     </div>
+                    {% endfor %}
                 </div>
-                {% empty %}
-                <p>No messages yet. Be the first to chat!</p>
-                {% endfor %}
+                
+                <form method="post" enctype="multipart/form-data" class="chat-form">
+                    {% csrf_token %}
+                    <textarea name="message" placeholder="Type your message here..."></textarea>
+                    <div class="file-input">
+                        <input type="file" name="file">
+                    </div>
+                    <button type="submit">Send Message</button>
+                </form>
             </div>
             
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                <textarea name="message" placeholder="Your message" rows="3"></textarea>
-                <div class="file-input">
-                    <label for="file">Attach a file (optional):</label>
-                    <input type="file" name="file" id="file">
-                </div>
-                <button type="submit">Send Message</button>
-            </form>
-            
-            <div class="api-section">
-                <h2>API Documentation</h2>
-                <p>Programmatic access to the chat and bulletin board:</p>
+            <div class="bulletin-container">
+                <h2>Bulletin Board</h2>
+                <div class="bulletin-content">{{ bulletin }}</div>
                 
-                <div class="endpoint">
-                    <span class="method get">GET</span>
-                    <code>/api/chat/</code>
-                    <p>Retrieve all chat messages as JSON.</p>
-                </div>
-                
-                <div class="endpoint">
-                    <span class="method post">POST</span>
-                    <code>/api/chat/</code>
-                    <p>Post a new chat message. Requires JSON body with "username" and "message".</p>
-                    <pre>
-{
-    "username": "your_username",
-    "message": "your_message"
-}</pre>
-                </div>
-                
-                <div class="endpoint">
-                    <span class="method get">GET</span>
-                    <code>/api/bulletin/</code>
-                    <p>Retrieve the current bulletin board content.</p>
-                </div>
-                
-                <div class="endpoint">
-                    <span class="method put">PUT</span>
-                    <code>/api/bulletin/</code>
-                    <p>Update the bulletin board content. Requires JSON body with "content".</p>
-                    <pre>
-{
-    "content": "New bulletin content"
-}</pre>
-                </div>
-                
-                <div class="endpoint">
-                    <span class="method post">POST</span>
-                    <code>/api/upload/</code>
-                    <p>Upload a file. Requires multipart/form-data with "file" field.</p>
-                </div>
-                
-                <div class="endpoint">
-                    <span class="method get">GET</span>
-                    <code>/download/&lt;filename&gt;</code>
-                    <p>Download an uploaded file.</p>
-                </div>
+                {% if username == 'admin' %}
+                <form method="post" action="/update_bulletin" class="bulletin-form">
+                    {% csrf_token %}
+                    <textarea name="bulletin_content" placeholder="Update bulletin board content...">{{ bulletin }}</textarea>
+                    <button type="submit">Update Bulletin</button>
+                </form>
+                {% endif %}
             </div>
         </div>
+        
+        <script>
+            // Auto-scroll to the bottom of the chat messages
+            window.onload = function() {
+                const messagesContainer = document.querySelector('.chat-messages');
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            };
+        </script>
     </body>
     </html>
     ''')
     
+    profile_pic_url = get_profile_picture_url(username)
+    
     context = Context({
         'username': username,
-        'profile_pic_url': profile_pic_url,
         'messages': messages,
-        'bulletin_content': bulletin_content,
-        'bulletin_file': BULLETIN_FILE
+        'bulletin': bulletin,
+        'profile_pic_url': profile_pic_url
     })
     
     return HttpResponse(template.render(context))
 
 def download_file(request, filename):
-    file_path = os.path.join(UPLOAD_DIR, filename)
-    if os.path.exists(file_path):
-        with open(file_path, 'rb') as f:
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    if os.path.exists(filepath):
+        with open(filepath, 'rb') as f:
             response = HttpResponse(f.read(), content_type='application/octet-stream')
             response['Content-Disposition'] = f'attachment; filename="{filename}"'
             return response
     else:
         return HttpResponse('File not found', status=404)
 
-def profile_picture_view(request, filename):
-    file_path = os.path.join(PROFILE_PICS_DIR, filename)
-    if os.path.exists(file_path):
-        # Determine content type based on file extension
-        ext = os.path.splitext(filename)[1].lower()
-        content_type = 'image/jpeg'
-        if ext == '.png':
-            content_type = 'image/png'
-        elif ext == '.gif':
-            content_type = 'image/gif'
-        
-        with open(file_path, 'rb') as f:
+def profile_pic_view(request, filename):
+    filepath = os.path.join(PROFILE_PICS_DIR, filename)
+    if os.path.exists(filepath):
+        with open(filepath, 'rb') as f:
+            # Determine content type based on file extension
+            ext = os.path.splitext(filename)[1].lower()
+            content_type = 'image/jpeg'
+            if ext == '.png':
+                content_type = 'image/png'
+            elif ext == '.gif':
+                content_type = 'image/gif'
+            
             response = HttpResponse(f.read(), content_type=content_type)
             response['Cache-Control'] = 'max-age=3600'  # Cache for 1 hour
             return response
     else:
-        # Return a default image if the file doesn't exist
-        # For simplicity, we'll just return a 404
         return HttpResponse('Profile picture not found', status=404)
-
-# API Views
-@csrf_exempt
-@require_http_methods(["GET", "POST"])
-def api_chat(request):
-    if request.method == 'GET':
-        # Return all chat messages
-        messages = read_chat_messages()
-        return JsonResponse({'messages': messages})
-    
-    elif request.method == 'POST':
-        # Create a new chat message
-        try:
-            # Check if it's a form data request (with file) or JSON request
-            if request.content_type.startswith('multipart/form-data'):
-                username = request.POST.get('username')
-                message = request.POST.get('message', '')
-                uploaded_file = request.FILES.get('file')
-                
-                filename = None
-                file_url = None
-                
-                if uploaded_file:
-                    filename, file_url = save_uploaded_file(uploaded_file)
-                
-                saved_message = save_chat_message(username, message, filename, file_url)
-                return JsonResponse(saved_message, status=201)
-            else:
-                # JSON request
-                data = json.loads(request.body)
-                username = data.get('username')
-                message = data.get('message')
-                
-                if not username:
-                    return JsonResponse(
-                        {'error': 'Username is required'}, 
-                        status=400
-                    )
-                
-                saved_message = save_chat_message(username, message)
-                return JsonResponse(saved_message, status=201)
-        except json.JSONDecodeError:
-            return JsonResponse(
-                {'error': 'Invalid JSON'}, 
-                status=400
-            )
-
-@csrf_exempt
-@require_http_methods(["GET", "PUT"])
-def api_bulletin(request):
-    if request.method == 'GET':
-        # Return bulletin content
-        content = read_bulletin()
-        return JsonResponse({'content': content})
-    
-    elif request.method == 'PUT':
-        # Update bulletin content
-        try:
-            data = json.loads(request.body)
-            content = data.get('content', '')
-            
-            updated_content = write_bulletin(content)
-            return JsonResponse({'content': updated_content})
-        except json.JSONDecodeError:
-            return JsonResponse(
-                {'error': 'Invalid JSON'}, 
-                status=400
-            )
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def api_upload(request):
-    # API endpoint for file uploads
-    if 'file' not in request.FILES:
-        return JsonResponse({'error': 'No file provided'}, status=400)
+def update_bulletin_view(request):
+    session = get_session(request)
+    if not session or 'username' not in session or session['username'] != 'admin':
+        return HttpResponse('Unauthorized', status=403)
     
-    uploaded_file = request.FILES['file']
-    filename, file_url = save_uploaded_file(uploaded_file)
-    
-    return JsonResponse({
-        'filename': filename,
-        'url': file_url
-    }, status=201)
+    content = request.POST.get('bulletin_content', '')
+    write_bulletin(content)
+    return HttpResponseRedirect('/')
+
+# API endpoints
+@csrf_exempt
+def api_chat_messages(request):
+    if request.method == 'GET':
+        messages = read_chat_messages()
+        return JsonResponse(messages, safe=False)
+    elif request.method == 'POST':
+        session = get_session(request)
+        if not session or 'username' not in session:
+            return JsonResponse({'error': 'Unauthorized'}, status=401)
+        
+        username = session['username']
+        data = json.loads(request.body)
+        message = data.get('message', '')
+        
+        if message:
+            new_message = save_chat_message(username, message)
+            return JsonResponse(new_message)
+        else:
+            return JsonResponse({'error': 'Message is required'}, status=400)
+
+@csrf_exempt
+def api_bulletin(request):
+    if request.method == 'GET':
+        bulletin = read_bulletin()
+        return JsonResponse({'content': bulletin})
+    elif request.method == 'POST':
+        session = get_session(request)
+        if not session or 'username' not in session or session['username'] != 'admin':
+            return JsonResponse({'error': 'Unauthorized'}, status=401)
+        
+        data = json.loads(request.body)
+        content = data.get('content', '')
+        write_bulletin(content)
+        return JsonResponse({'success': True})
 
 # URL patterns
 urlpatterns = [
-    path('', chat_view, name='home'),
-    path('login/', login_view, name='login'),
-    path('login', login_view),
-    path('register/', register_view, name='register'),
-    path('register', register_view),
-    path('logout/', logout_view, name='logout'),
-    path('logout', logout_view),
-    path('profile/', profile_view, name='profile'),
-    path('profile', profile_view),
-    path('api/chat/', api_chat),
-    path('api/bulletin/', api_bulletin),
-    path('api/upload/', api_upload),
-    path('download/<str:filename>', download_file),
-    path('profile_pic/<str:filename>', profile_picture_view),
+    path('', index_view, name='index'),
+    path('login', login_view, name='login'),
+    path('register', register_view, name='register'),
+    path('logout', logout_view, name='logout'),
+    path('profile', profile_view, name='profile'),
+    path('user/<str:username>', user_profile_view, name='user_profile'),
+    path('download/<str:filename>', download_file, name='download'),
+    path('profile_pic/<str:filename>', profile_pic_view, name='profile_pic'),
+    path('update_bulletin', update_bulletin_view, name='update_bulletin'),
+    path('api/chat', api_chat_messages, name='api_chat'),
+    path('api/bulletin', api_bulletin, name='api_bulletin'),
 ]
 
-# Application object
+# Application
 application = get_wsgi_application()
 
-# Run the application
+# Run the server
 if __name__ == '__main__':
     import sys
     from django.core.management import execute_from_command_line
@@ -1685,35 +1659,15 @@ if __name__ == '__main__':
     # Start localtunnel if enabled
     start_localtunnel()
     
-    # Check if we're running with the runserver command
-    if len(sys.argv) > 1 and sys.argv[1] == 'runserver':
-        execute_from_command_line(sys.argv)
+    # Print server information
+    print("Starting BEAM Chat Server...")
+    print(f"Local URL: http://localhost:8000")
+    
+    if USE_LOCALTUNNEL:
+        print("Localtunnel is enabled. Waiting for public URL...")
+        print("(It may take a few seconds for the public URL to appear)")
     else:
-        # Default to running the server
-        print("Starting Django server...")
-        print(f"Chat messages stored in: {os.path.abspath(CHAT_FILE)}")
-        print(f"Bulletin board stored in: {os.path.abspath(BULLETIN_FILE)}")
-        print(f"User data stored in: {os.path.abspath(USERS_FILE)}")
-        print(f"Uploaded files stored in: {os.path.abspath(UPLOAD_DIR)}")
-        print(f"Profile pictures stored in: {os.path.abspath(PROFILE_PICS_DIR)}")
-        print(f"Encryption key stored in: {os.path.abspath(ENCRYPTION_KEY_FILE)}")
-        print("🔒 All messages and user data are encrypted using AES-128 encryption")
-        print("To update the bulletin board, edit the bulletin_board.txt file")
-        
-        if USE_LOCALTUNNEL:
-            print("\nLocaltunnel is enabled. It will start automatically.")
-            print("If localtunnel is not installed, you can install it with:")
-            print("npm install -g localtunnel")
-        else:
-            print("\nLocaltunnel is disabled. To enable it, set USE_LOCALTUNNEL = True")
-        
-        print("\nAPI endpoints available:")
-        print("GET  /api/chat/     - Retrieve all chat messages")
-        print("POST /api/chat/     - Post a new chat message")
-        print("GET  /api/bulletin/ - Retrieve bulletin content")
-        print("PUT  /api/bulletin/ - Update bulletin content")
-        print("POST /api/upload/   - Upload a file")
-        print("GET  /download/<filename> - Download a file")
-        print("GET  /profile_pic/<filename> - Get a profile picture")
-        
-        execute_from_command_line(['manage.py', 'runserver', '0.0.0.0:8000'])
+        print("Localtunnel is disabled. Only accessible on local network.")
+    
+    # Run the Django development server
+    execute_from_command_line([sys.argv[0], 'runserver', '0.0.0.0:8000'])

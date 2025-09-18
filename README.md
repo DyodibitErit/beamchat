@@ -9,7 +9,7 @@ A secure, encrypted messaging and bulletin board application built with Django t
 - **Bulletin Board**: Shared space for announcements and important messages
 - **RESTful API**: Programmatic access to all functionality
 - **Responsive Design**: Works on desktop and mobile devices
-- **Dark Mode Support**: Automatically adapts to user's preference
+- **Dark Mode Support (ONLY V0.54 OR LOWER)**: Automatically adapts to user's preference
 
 ## Security Features
 
