@@ -1318,8 +1318,8 @@ def index_view(request):
             }
             
             .chat-messages {
-                max-height: 500px;
-                overflow-y: auto;
+                max-height: 400px;
+                overflow-y: scroll;
                 margin-bottom: 20px;
                 padding: 10px;
                 border: 1px solid var(--border-color);
