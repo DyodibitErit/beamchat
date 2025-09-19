@@ -256,7 +256,7 @@ def generate_default_profile_picture(username, size=200):
     text_height = bbox[3] - bbox[1]
     
     x = (size - text_width) / 2
-    y = (size - text_height) / 2
+    y = (size - text_height) / 2.5
     
     # Draw the text
     draw.text((x, y), initials, fill=(255, 255, 255), font=font)
