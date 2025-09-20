@@ -362,10 +362,89 @@ def read_chat_messages():
         pass
     return messages
 
+def handle_message_edit(message_text):
+    """
+    Handle message editing using s/<old_word>/<new_word> syntax.
+    Only replaces the first occurrence of old_word with new_word.
+    """
+    if message_text.startswith('s/') and '/' in message_text[2:]:
+        # Extract the parts after 's/'
+        parts = message_text[2:].split('/', 2)
+        
+        if len(parts) >= 2:
+            old_word = parts[0]
+            new_word = parts[1]
+            
+            # If there's a trailing slash with nothing after it, treat as empty replacement
+            if len(parts) == 3 and parts[2] == '':
+                # This handles the case of s/word// to delete a word
+                pass
+            elif len(parts) == 2:
+                # This is a valid s/old/new pattern
+                return old_word, new_word
+    
+    return None, None
+
+
 def save_chat_message(username, message, filename=None, file_url=None):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Encrypt all data
+    # Check if this is an edit command
+    old_word, new_word = handle_message_edit(message)
+    if old_word is not None:
+        # This is an edit command, find the user's last message
+        messages = read_chat_messages()
+        user_messages = [msg for msg in messages if msg['username'] == username]
+        
+        if user_messages:
+            last_message = user_messages[-1]
+            original_text = last_message['message']
+            
+            # Replace only the first occurrence
+            if old_word in original_text:
+                edited_text = original_text.replace(old_word, new_word, 1)
+                
+                # Update the message in the file
+                updated_messages = []
+                message_updated = False
+                
+                with open(CHAT_FILE, 'r', encoding="UTF-8") as f:
+                    for line in f:
+                        if line.strip():
+                            try:
+                                encrypted_data = json.loads(line)
+                                decrypted_username = decrypt_data(encrypted_data['username'])
+                                
+                                # Find the user's last message that matches the original text
+                                if (decrypted_username == username and 
+                                    not message_updated and
+                                    decrypt_data(encrypted_data['message']) == original_text):
+                                    
+                                    # Encrypt the edited message
+                                    encrypted_data['message'] = encrypt_data(edited_text)
+                                    message_updated = True
+                                
+                                updated_messages.append(json.dumps(encrypted_data) + '\n')
+                            except:
+                                updated_messages.append(line)
+                
+                # Write the updated messages back to the file
+                with open(CHAT_FILE, 'w', encoding="UTF-8") as f:
+                    f.writelines(updated_messages)
+                
+                # Return the edited message for display
+                return {
+                    'username': username,
+                    'message': f"{edited_text} (edited)",
+                    'timestamp': timestamp,
+                    'filename': filename,
+                    'file_url': file_url
+                }
+        
+        # If no message was found to edit, treat as a regular message
+        message = f"(edit failed) {message}"
+    
+    # Encrypt all data for a regular message
     encrypted_data = {
         'username': encrypt_data(username),
         'message': encrypt_data(message),
@@ -387,7 +466,6 @@ def save_chat_message(username, message, filename=None, file_url=None):
         'filename': filename,
         'file_url': file_url
     }
-
 def read_bulletin():
     try:
         with open(BULLETIN_FILE, 'r', encoding="UTF-8") as f:
