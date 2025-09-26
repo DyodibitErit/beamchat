@@ -552,104 +552,114 @@ def login_view(request):
         <title>BEAM - Login</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            :root {
-                --primary-color: #3366cc;
-                --secondary-color: #f9f9f9;
-                --border-color: #ddd;
-                --text-color: #333;
-                --light-text: #999;
-            }
-            
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
-            
-            body { 
-                font-family: Arial, sans-serif; 
-                background-color: #f5f5f5;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                padding: 20px;
-            }
-            
-            .login-container {
-                background-color: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                width: 100%;
-                max-width: 400px;
-            }
-            
-            h1 {
-                text-align: center;
-                margin-bottom: 20px;
-                color: var(--primary-color);
-            }
-            
-            .error {
-                color: #d9534f;
-                margin-bottom: 15px;
-                padding: 10px;
-                background-color: #f8d7da;
-                border: 1px solid #f5c6cb;
-                border-radius: 4px;
-            }
-            
-            form {
-                margin-top: 20px;
-            }
-            
-            input { 
-                display: block; 
-                margin-bottom: 15px; 
-                width: 100%;
-                padding: 12px;
-                border: 1px solid var(--border-color);
-                border-radius: 4px;
-                font-family: inherit;
-                font-size: 1em;
-            }
-            
-            input:focus {
-                outline: none;
-                border-color: var(--primary-color);
-                box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.2);
-            }
-            
-            button { 
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 12px;
-                cursor: pointer;
-                font-weight: bold;
-                transition: background-color 0.3s;
-                width: 100%;
-            }
-            
-            button:hover {
-                background-color: #254e9e;
-            }
-            
-            .register-link {
-                text-align: center;
-                margin-top: 20px;
-            }
-            
-            .register-link a {
-                color: var(--primary-color);
-                text-decoration: none;
-            }
-            
-            .register-link a:hover {
-                text-decoration: underline;
-            }
-        </style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body { 
+        font-family: Arial, sans-serif; 
+        background-color: var(--background-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+    }
+    
+    .login-container {
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        width: 100%;
+        max-width: 400px;
+        border: 1px solid var(--border-color);
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .error {
+        color: #f04747;
+        margin-bottom: 15px;
+        padding: 10px;
+        background-color: rgba(240, 71, 71, 0.1);
+        border: 1px solid rgba(240, 71, 71, 0.3);
+        border-radius: 4px;
+    }
+    
+    form {
+        margin-top: 20px;
+    }
+    
+    input { 
+        display: block; 
+        margin-bottom: 15px; 
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 1em;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    input::placeholder {
+        color: var(--light-text);
+    }
+    
+    input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+    }
+    
+    button { 
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+        width: 100%;
+        border-radius: 4px;
+    }
+    
+    button:hover {
+        background-color: #5b73c4;
+    }
+    
+    .register-link {
+        text-align: center;
+        margin-top: 20px;
+        color: var(--light-text);
+    }
+    
+    .register-link a {
+        color: var(--primary-color);
+        text-decoration: none;
+    }
+    
+    .register-link a:hover {
+        text-decoration: underline;
+    }
+</style>
     </head>
     <body>
         <div class="login-container">
@@ -711,112 +721,122 @@ def register_view(request):
     <head>
         <title>BEAM - Register</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            :root {
-                --primary-color: #3366cc;
-                --secondary-color: #f9f9f9;
-                --border-color: #ddd;
-                --text-color: #333;
-                --light-text: #999;
-            }
-            
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
-            
-            body { 
-                font-family: Arial, sans-serif; 
-                background-color: #f5f5f5;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-                padding: 20px;
-            }
-            
-            .register-container {
-                background-color: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-                width: 100%;
-                max-width: 400px;
-            }
-            
-            h1 {
-                text-align: center;
-                margin-bottom: 20px;
-                color: var(--primary-color);
-            }
-            
-            .error {
-                color: #d9534f;
-                margin-bottom: 15px;
-                padding: 10px;
-                background-color: #f8d7da;
-                border: 1px solid #f5c6cb;
-                border-radius: 4px;
-            }
-            
-            .field-error {
-                color: #d9534f;
-                font-size: 0.9em;
-                margin-top: -10px;
-                margin-bottom: 15px;
-            }
-            
-            form {
-                margin-top: 20px;
-            }
-            
-            input { 
-                display: block; 
-                margin-bottom: 5px; 
-                width: 100%;
-                padding: 12px;
-                border: 1px solid var(--border-color);
-                border-radius: 4px;
-                font-family: inherit;
-                font-size: 1em;
-            }
-            
-            input:focus {
-                outline: none;
-                border-color: var(--primary-color);
-                box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.2);
-            }
-            
-            button { 
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 12px;
-                cursor: pointer;
-                font-weight: bold;
-                transition: background-color 0.3s;
-                width: 100%;
-            }
-            
-            button:hover {
-                background-color: #254e9e;
-            }
-            
-            .login-link {
-                text-align: center;
-                margin-top: 20px;
-            }
-            
-            .login-link a {
-                color: var(--primary-color);
-                text-decoration: none;
-            }
-            
-            .login-link a:hover {
-                text-decoration: underline;
-            }
-        </style>
+  <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body { 
+        font-family: Arial, sans-serif; 
+        background-color: var(--background-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+    }
+    
+    .register-container {
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        width: 100%;
+        max-width: 400px;
+        border: 1px solid var(--border-color);
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .error {
+        color: #f04747;
+        margin-bottom: 15px;
+        padding: 10px;
+        background-color: rgba(240, 71, 71, 0.1);
+        border: 1px solid rgba(240, 71, 71, 0.3);
+        border-radius: 4px;
+    }
+    
+    .field-error {
+        color: #f04747;
+        font-size: 0.9em;
+        margin-top: -10px;
+        margin-bottom: 15px;
+    }
+    
+    form {
+        margin-top: 20px;
+    }
+    
+    input { 
+        display: block; 
+        margin-bottom: 5px; 
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 1em;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    input::placeholder {
+        color: var(--light-text);
+    }
+    
+    input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+    }
+    
+    button { 
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+        width: 100%;
+        border-radius: 4px;
+    }
+    
+    button:hover {
+        background-color: #5b73c4;
+    }
+    
+    .login-link {
+        text-align: center;
+        margin-top: 20px;
+        color: var(--light-text);
+    }
+    
+    .login-link a {
+        color: var(--primary-color);
+        text-decoration: none;
+    }
+    
+    .login-link a:hover {
+        text-decoration: underline;
+    }
+</style>
     </head>
     <body>
         <div class="register-container">
@@ -895,167 +915,172 @@ def profile_view(request):
         <title>BEAM - Profile</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            :root {
-                --primary-color: #3366cc;
-                --secondary-color: #f9f9f9;
-                --border-color: #ddd;
-                --text-color: #333;
-                --light-text: #999;
-            }
-            
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
-            
-            body { 
-                font-family: Arial, sans-serif; 
-                background-color: #f5f5f5;
-                padding: 20px;
-            }
-            
-            .container {
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            }
-            
-            .user-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                padding-bottom: 10px;
-                border-bottom: 1px solid var(--border-color);
-            }
-            
-            .user-info {
-                display: flex;
-                align-items: center;
-            }
-            
-            .welcome {
-                margin-right: 15px;
-                font-weight: bold;
-            }
-            
-            .back-btn, .logout-btn {
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 8px 15px;
-                border-radius: 4px;
-                cursor: pointer;
-                text-decoration: none;
-                font-size: 0.9em;
-                margin-left: 10px;
-            }
-            
-            .logout-btn {
-                background-color: #dc3545;
-            }
-            
-            .back-btn:hover {
-                background-color: #254e9e;
-            }
-            
-            .logout-btn:hover {
-                background-color: #c82333;
-            }
-            
-            h1 {
-                text-align: center;
-                margin-bottom: 20px;
-                color: var(--primary-color);
-            }
-            
-            .profile-section {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                margin-bottom: 30px;
-            }
-            
-            .profile-picture {
-                width: 150px;
-                height: 150px;
-                border-radius: 50%;
-                object-fit: cover;
-                margin-bottom: 20px;
-                border: 3px solid var(--primary-color);
-            }
-            
-            .profile-form {
-                width: 100%;
-                max-width: 400px;
-            }
-            
-            input, button { 
-                display: block; 
-                margin-bottom: 15px; 
-                width: 100%;
-                padding: 12px;
-                border: 1px solid var(--border-color);
-                border-radius: 4px;
-                font-family: inherit;
-                font-size: 1em;
-            }
-            
-            input:focus {
-                outline: none;
-                border-color: var(--primary-color);
-                box-shadow: 0 0 0 2px rgba(51, 102, 204, 0.2);
-            }
-            
-            button { 
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 12px;
-                cursor: pointer;
-                font-weight: bold;
-                transition: background-color 0.3s;
-            }
-            
-            button:hover {
-                background-color: #254e9e;
-            }
-            
-            .btn-group {
-                display: flex;
-                gap: 10px;
-            }
-            
-            @media (max-width: 600px) {
-                .container {
-                    padding: 20px;
-                }
-                
-                .user-header {
-                    flex-direction: column;
-                    align-items: flex-start;
-                }
-                
-                .user-info {
-                    margin-bottom: 10px;
-                }
-                
-                .btn-group {
-                    flex-direction: column;
-                    width: 100%;
-                }
-                
-                .back-btn, .logout-btn {
-                    margin-left: 0;
-                    margin-bottom: 10px;
-                    text-align: center;
-                }
-            }
-        </style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body { 
+        font-family: Arial, sans-serif; 
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .user-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .welcome {
+        margin-right: 15px;
+        font-weight: bold;
+        color: var(--text-color);
+    }
+    
+    .back-btn, .logout-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+    
+    .logout-btn {
+        background-color: #f04747;
+    }
+    
+    .back-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    .logout-btn:hover {
+        background-color: #d84040;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .profile-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    
+    .profile-picture {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 20px;
+        border: 3px solid var(--primary-color);
+    }
+    
+    .profile-form {
+        width: 100%;
+        max-width: 400px;
+    }
+    
+    input, button { 
+        display: block; 
+        margin-bottom: 15px; 
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 1em;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+    }
+    
+    button { 
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+    }
+    
+    button:hover {
+        background-color: #5b73c4;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 10px;
+    }
+    
+    @media (max-width: 600px) {
+        .container {
+            padding: 20px;
+        }
+        
+        .user-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .user-info {
+            margin-bottom: 10px;
+        }
+        
+        .btn-group {
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        .back-btn, .logout-btn {
+            margin-left: 0;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+    }
+</style>
     </head>
     <body>
         <div class="container">
@@ -1118,123 +1143,126 @@ def user_profile_view(request, username):
         <title>BEAM - {{ username }}'s Profile</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            :root {
-                --primary-color: #3366cc;
-                --secondary-color: #f9f9f9;
-                --border-color: #ddd;
-                --text-color: #333;
-                --light-text: #999;
-            }
-            
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
-            
-            body { 
-                font-family: Arial, sans-serif; 
-                background-color: #f5f5f5;
-                padding: 20px;
-            }
-            
-            .container {
-                max-width: 600px;
-                margin: 0 auto;
-                background-color: white;
-                padding: 30px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            }
-            
-            .user-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                padding-bottom: 10px;
-                border-bottom: 1px solid var(--border-color);
-            }
-            
-            .user-info {
-                display: flex;
-                align-items: center;
-            }
-            
-            .welcome {
-                margin-right: 15px;
-                font-weight: bold;
-            }
-            
-            .back-btn {
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 8px 15px;
-                border-radius: 4px;
-                cursor: pointer;
-                text-decoration: none;
-                font-size: 0.9em;
-            }
-            
-            .back-btn:hover {
-                background-color: #254e9e;
-            }
-            
-            h1 {
-                text-align: center;
-                margin-bottom: 20px;
-                color: var(--primary-color);
-            }
-            
-            .profile-section {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                margin-bottom: 30px;
-            }
-            
-            .profile-picture {
-                width: 200px;
-                height: 200px;
-                border-radius: 50%;
-                object-fit: cover;
-                margin-bottom: 20px;
-                border: 3px solid var(--primary-color);
-            }
-            
-            .user-details {
-                text-align: center;
-                margin-bottom: 20px;
-            }
-            
-            .username-large {
-                font-size: 1.5em;
-                font-weight: bold;
-                margin-bottom: 10px;
-                color: var(--primary-color);
-            }
-            
-            .registration-date {
-                color: var(--light-text);
-                font-size: 0.9em;
-            }
-            
-            @media (max-width: 600px) {
-                .container {
-                    padding: 20px;
-                }
-                
-                .user-header {
-                    flex-direction: column;
-                    align-items: flex-start;
-                }
-                
-                .user-info {
-                    margin-bottom: 10px;
-                }
-            }
-        </style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body { 
+        font-family: Arial, sans-serif; 
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .user-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .welcome {
+        margin-right: 15px;
+        font-weight: bold;
+        color: var(--text-color);
+    }
+    
+    .back-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+    }
+    
+    .back-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .profile-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    
+    .profile-picture {
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 20px;
+        border: 3px solid var(--primary-color);
+    }
+    
+    .user-details {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .username-large {
+        font-size: 1.5em;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: var(--primary-color);
+    }
+    
+    .registration-date {
+        color: var(--light-text);
+        font-size: 0.9em;
+    }
+    
+    @media (max-width: 600px) {
+        .container {
+            padding: 20px;
+        }
+        
+        .user-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .user-info {
+            margin-bottom: 10px;
+        }
+    }
+</style>
     </head>
     <body>
         <div class="container">
@@ -1303,257 +1331,289 @@ def index_view(request):
         <title>BEAM Chat</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            :root {
-                --primary-color: #3366cc;
-                --secondary-color: #f9f9f9;
-                --border-color: #ddd;
-                --text-color: #333;
-                --light-text: #999;
-            }
-            
-            * {
-                box-sizing: border-box;
-                margin: 0;
-                padding: 0;
-            }
-            
-            body { 
-                font-family: Arial, sans-serif; 
-                background-color: #f5f5f5;
-                padding: 20px;
-            }
-            
-            .container {
-                max-width: 1000px;
-                margin: 0 auto;
-                display: grid;
-                grid-template-columns: 1fr 300px;
-                gap: 20px;
-            }
-            
-            @media (max-width: 768px) {
-                .container {
-                    grid-template-columns: 1fr;
-                }
-            }
-            
-            .chat-container, .bulletin-container {
-                background-color: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            }
-            
-            .user-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                padding-bottom: 10px;
-                border-bottom: 1px solid var(--border-color);
-            }
-            
-            .user-info {
-                display: flex;
-                align-items: center;
-            }
-            
-            .welcome {
-                margin-right: 15px;
-                font-weight: bold;
-            }
-            
-            .profile-pic {
-                width: 30px;
-                height: 30px;
-                border-radius: 50%;
-                object-fit: cover;
-                margin-right: 10px;
-            }
-            
-            .profile-btn, .logout-btn {
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 8px 15px;
-                border-radius: 4px;
-                cursor: pointer;
-                text-decoration: none;
-                font-size: 0.9em;
-                margin-left: 10px;
-            }
-            
-            .logout-btn {
-                background-color: #dc3545;
-            }
-            
-            .profile-btn:hover {
-                background-color: #254e9e;
-            }
-            
-            .logout-btn:hover {
-                background-color: #c82333;
-            }
-            
-            .chat-messages {
-                max-height: 400px;
-                overflow-y: scroll;
-                margin-bottom: 20px;
-                padding: 10px;
-                border: 1px solid var(--border-color);
-                border-radius: 4px;
-            }
-            
-            .message {
-                margin-bottom: 15px;
-                padding: 10px;
-                border-radius: 4px;
-                background-color: var(--secondary-color);
-            }
-            
-            .message-header {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 5px;
-                font-size: 0.9em;
-                color: var(--light-text);
-            }
-            
-            .username {
-                font-weight: bold;
-                color: var(--primary-color);
-                text-decoration: none;
-            }
-            
-            .username:hover {
-                text-decoration: underline;
-            }
-            
-            .timestamp {
-                color: var(--light-text);
-            }
-            
-            .message-content {
-                margin-bottom: 5px;
-                word-break: break-word;
-            }
-            
-            .file-attachment {
-                margin-top: 5px;
-                padding: 5px;
-                background-color: rgba(51, 102, 204, 0.1);
-                border-radius: 4px;
-            }
-            
-            .file-attachment a {
-                color: var(--primary-color);
-                text-decoration: none;
-            }
-            
-            .file-attachment a:hover {
-                text-decoration: underline;
-            }
-            
-            .chat-form textarea {
-                width: 100%;
-                padding: 10px;
-                border: 1px solid var(--border-color);
-                border-radius: 4px;
-                resize: vertical;
-                min-height: 80px;
-                margin-bottom: 10px;
-                font-family: inherit;
-            }
-            
-            .file-input {
-                margin-bottom: 10px;
-            }
-            
-            .chat-form button {
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-weight: bold;
-                transition: background-color 0.3s;
-            }
-            
-            .chat-form button:hover {
-                background-color: #254e9e;
-            }
-            
-            .bulletin-container h2 {
-                margin-bottom: 15px;
-                color: var(--primary-color);
-                border-bottom: 1px solid var(--border-color);
-                padding-bottom: 10px;
-            }
-            
-            .bulletin-content {
-                white-space: pre-wrap;
-                word-break: break-word;
-                line-height: 1.5;
-            }
-            
-            .bulletin-form {
-                margin-top: 20px;
-            }
-            
-            .bulletin-form textarea {
-                width: 100%;
-                padding: 10px;
-                border: 1px solid var(--border-color);
-                border-radius: 4px;
-                resize: vertical;
-                min-height: 100px;
-                margin-bottom: 10px;
-                font-family: inherit;
-            }
-            
-            .bulletin-form button {
-                background-color: var(--primary-color);
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 4px;
-                cursor: pointer;
-                font-weight: bold;
-                transition: background-color 0.3s;
-            }
-            
-            .bulletin-form button:hover {
-                background-color: #254e9e;
-            }
-            
-            .btn-group {
-                display: flex;
-                gap: 10px;
-            }
-            
-            @media (max-width: 600px) {
-                .user-header {
-                    flex-direction: column;
-                    align-items: flex-start;
-                }
-                
-                .user-info {
-                    margin-bottom: 10px;
-                }
-                
-                .btn-group {
-                    flex-direction: column;
-                    width: 100%;
-                }
-                
-                .profile-btn, .logout-btn {
-                    margin-left: 0;
-                    margin-bottom: 10px;
-                    text-align: center;
-                }
-            }
-        </style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+        --message-bg: #36393f;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body { 
+        font-family: Arial, sans-serif; 
+        background-color: var(--background-color);
+        padding: 20px;
+        color: var(--text-color);
+    }
+    
+    .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 20px;
+    }
+    
+    @media (max-width: 768px) {
+        .container {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .chat-container, .bulletin-container {
+        background-color: var(--secondary-color);
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .user-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .welcome {
+        margin-right: 15px;
+        font-weight: bold;
+    }
+    
+    .profile-pic {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-right: 10px;
+    }
+    
+    .profile-btn, .logout-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+    
+    .logout-btn {
+        background-color: #f04747;
+    }
+    
+    .profile-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    .logout-btn:hover {
+        background-color: #d84040;
+    }
+    
+    .chat-messages {
+        max-height: 400px;
+        overflow-y: scroll;
+        margin-bottom: 20px;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background-color: var(--message-bg);
+    }
+    
+    .message {
+        margin-bottom: 15px;
+        padding: 10px;
+        border-radius: 4px;
+        background-color: var(--secondary-color);
+        border-left: 3px solid var(--primary-color);
+    }
+    
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        font-size: 0.9em;
+        color: var(--light-text);
+    }
+    
+    .username {
+        font-weight: bold;
+        color: var(--primary-color);
+        text-decoration: none;
+    }
+    
+    .username:hover {
+        text-decoration: underline;
+    }
+    
+    .timestamp {
+        color: var(--light-text);
+    }
+    
+    .message-content {
+        margin-bottom: 5px;
+        word-break: break-word;
+    }
+    
+    .file-attachment {
+        margin-top: 5px;
+        padding: 5px;
+        background-color: rgba(114, 137, 218, 0.1);
+        border-radius: 4px;
+        border-left: 2px solid var(--primary-color);
+    }
+    
+    .file-attachment a {
+        color: var(--primary-color);
+        text-decoration: none;
+    }
+    
+    .file-attachment a:hover {
+        text-decoration: underline;
+    }
+    
+    .chat-form textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        resize: vertical;
+        min-height: 80px;
+        margin-bottom: 10px;
+        font-family: inherit;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    .chat-form textarea::placeholder {
+        color: var(--light-text);
+    }
+    
+    .file-input {
+        margin-bottom: 10px;
+    }
+    
+    .file-input input {
+        background-color: #40444b;
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+        padding: 8px;
+        border-radius: 4px;
+        width: 100%;
+    }
+    
+    .chat-form button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+    }
+    
+    .chat-form button:hover {
+        background-color: #5b73c4;
+    }
+    
+    .bulletin-container h2 {
+        margin-bottom: 15px;
+        color: var(--primary-color);
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 10px;
+    }
+    
+    .bulletin-content {
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.5;
+        background-color: var(--message-bg);
+        padding: 15px;
+        border-radius: 4px;
+        border-left: 3px solid var(--primary-color);
+    }
+    
+    .bulletin-form {
+        margin-top: 20px;
+    }
+    
+    .bulletin-form textarea {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        resize: vertical;
+        min-height: 100px;
+        margin-bottom: 10px;
+        font-family: inherit;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    .bulletin-form textarea::placeholder {
+        color: var(--light-text);
+    }
+    
+    .bulletin-form button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+    }
+    
+    .bulletin-form button:hover {
+        background-color: #5b73c4;
+    }
+    
+    .btn-group {
+        display: flex;
+        gap: 10px;
+    }
+    
+    @media (max-width: 600px) {
+        .user-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .user-info {
+            margin-bottom: 10px;
+        }
+        
+        .btn-group {
+            flex-direction: column;
+            width: 100%;
+        }
+        
+        .profile-btn, .logout-btn {
+            margin-left: 0;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+    }
+</style>
     </head>
     <body>
         <div class="container">
