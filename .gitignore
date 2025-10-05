@@ -1,0 +1,39 @@
+# Data files created by the messenger
+chat_messages.txt
+bulletin_board.txt
+users.json
+encryption.key
+
+# Upload directories
+uploads/
+profile_pics/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django specific
+*.log
+*.pot
+*.pyc
+db.sqlite3
+
+# Environment variables
+.env
+.env.local
+
+# IDE files (common ones)
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
