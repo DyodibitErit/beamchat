@@ -145,6 +145,63 @@ def verify_password(stored_password, provided_password):
         return hmac.compare_digest(stored_password, new_hash)
     except:
         return False
+    
+def ban_user(username, reason="Violation of terms of service"):
+    """Ban a user from the system"""
+    users = read_users()
+    if username in users:
+        users[username]['banned'] = True
+        users[username]['ban_reason'] = reason
+        users[username]['banned_at'] = datetime.now().isoformat()
+        save_users(users)
+        return True
+    return False
+
+def unban_user(username):
+    """Unban a user"""
+    users = read_users()
+    if username in users and users[username].get('banned', False):
+        users[username]['banned'] = False
+        # Keep ban history but remove active ban
+        save_users(users)
+        return True
+    return False
+
+def is_user_banned(username):
+    """Check if a user is banned"""
+    users = read_users()
+    if username in users:
+        return users[username].get('banned', False)
+    return False
+
+def get_banned_users():
+    """Get list of all banned users"""
+    users = read_users()
+    banned_users = []
+    for username, user_data in users.items():
+        if user_data.get('banned', False):
+            banned_users.append({
+                'username': username,
+                'ban_reason': user_data.get('ban_reason', 'No reason provided'),
+                'banned_at': user_data.get('banned_at', 'Unknown'),
+                'created_at': user_data.get('created_at', 'Unknown')
+            })
+    return banned_users
+
+def get_all_users():
+    """Get list of all users with their status"""
+    users = read_users()
+    user_list = []
+    for username, user_data in users.items():
+        user_list.append({
+            'username': username,
+            'banned': user_data.get('banned', False),
+            'ban_reason': user_data.get('ban_reason', ''),
+            'banned_at': user_data.get('banned_at', ''),
+            'created_at': user_data.get('created_at', 'Unknown'),
+            'last_login': user_data.get('last_login', 'Never')
+        })
+    return user_list
 
 def read_users():
     """Read users from the encrypted users file"""
@@ -195,6 +252,11 @@ def authenticate_user(username, password):
     users = read_users()
     if username not in users:
         return False, "User not found"
+    
+    # Check if user is banned
+    if users[username].get('banned', False):
+        ban_reason = users[username].get('ban_reason', 'Violation of terms of service')
+        return False, f"Account banned: {ban_reason}"
     
     if not verify_password(users[username]['password_hash'], password):
         return False, "Invalid password"
@@ -1278,6 +1340,13 @@ def home_view(request):
         return HttpResponseRedirect('/login')
     
     username = session['username']
+    
+    # Check if user is banned
+    if is_user_banned(username):
+        # Log out banned user
+        response = HttpResponseRedirect('/login')
+        return logout_user(response)
+    
     profile_pic_url = get_profile_picture_url(username)
     
     if request.method == 'POST':
@@ -1678,6 +1747,321 @@ def home_view(request):
     
     return HttpResponse(template.render(context))
 
+def admin_users_view(request):
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    
+    # Simple admin check
+    if username != 'admin':
+        return HttpResponse('Access denied', status=403)
+    
+    action = request.GET.get('action')
+    target_user = request.GET.get('user')
+    ban_reason = request.GET.get('reason', 'Violation of terms of service')
+    
+    # Handle ban/unban actions
+    if action and target_user:
+        if action == 'ban' and target_user != 'admin':  # Prevent banning admin
+            success = ban_user(target_user, ban_reason)
+            if not success:
+                return HttpResponse('User not found', status=404)
+        elif action == 'unban':
+            success = unban_user(target_user)
+            if not success:
+                return HttpResponse('User not found or not banned', status=404)
+        
+        return HttpResponseRedirect('/admin/users')
+    
+    users = get_all_users()
+    banned_users = get_banned_users()
+    
+    template = Template('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - User Management</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+        --danger-color: #f04747;
+        --success-color: #43b581;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body { 
+        font-family: Arial, sans-serif; 
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .admin-nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    .nav-btn.active {
+        background-color: #43b581;
+    }
+    
+    h1 {
+        color: var(--primary-color);
+        margin-bottom: 20px;
+    }
+    
+    h2 {
+        color: var(--text-color);
+        margin: 30px 0 15px 0;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .user-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+    }
+    
+    .user-table th,
+    .user-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-color);
+    }
+    
+    .user-table th {
+        background-color: rgba(255, 255, 255, 0.05);
+        color: var(--primary-color);
+        font-weight: bold;
+    }
+    
+    .user-table tr:hover {
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+    
+    .banned-user {
+        background-color: rgba(240, 71, 71, 0.1);
+    }
+    
+    .ban-btn {
+        background-color: var(--danger-color);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.8em;
+    }
+    
+    .unban-btn {
+        background-color: var(--success-color);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.8em;
+    }
+    
+    .ban-btn:hover {
+        background-color: #d84040;
+    }
+    
+    .unban-btn:hover {
+        background-color: #3ca374;
+    }
+    
+    .ban-form {
+        display: inline;
+    }
+    
+    .ban-reason-input {
+        padding: 4px 8px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background-color: #40444b;
+        color: var(--text-color);
+        margin-right: 5px;
+        width: 200px;
+    }
+    
+    .empty-state {
+        text-align: center;
+        color: var(--light-text);
+        padding: 40px;
+        font-style: italic;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: bold;
+    }
+    
+    .status-banned {
+        background-color: var(--danger-color);
+        color: white;
+    }
+    
+    .status-active {
+        background-color: var(--success-color);
+        color: white;
+    }
+</style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="admin-header">
+                <h1>User Management</h1>
+                <a href="/" class="nav-btn">Back to Chat</a>
+            </div>
+            
+            <div class="admin-nav">
+                <a href="/admin" class="nav-btn">Bulletin Board</a>
+                <a href="/admin/users" class="nav-btn active">User Management</a>
+            </div>
+            
+            <h2>Banned Users ({{ banned_users|length }})</h2>
+            {% if banned_users %}
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Ban Reason</th>
+                        <th>Banned At</th>
+                        <th>Account Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in banned_users %}
+                    <tr class="banned-user">
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.ban_reason }}</td>
+                        <td>{{ user.banned_at }}</td>
+                        <td>{{ user.created_at }}</td>
+                        <td>
+                            <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">No banned users</div>
+            {% endif %}
+            
+            <h2>All Users ({{ users|length }})</h2>
+            {% if users %}
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Status</th>
+                        <th>Last Login</th>
+                        <th>Account Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <td>
+                            {% if user.banned %}
+                            <span class="status-badge status-banned">Banned</span>
+                            {% else %}
+                            <span class="status-badge status-active">Active</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.last_login }}</td>
+                        <td>{{ user.created_at }}</td>
+                        <td>
+                            {% if not user.banned and user.username != 'admin' %}
+                            <form class="ban-form" method="get" action="/admin/users">
+                                <input type="hidden" name="action" value="ban">
+                                <input type="hidden" name="user" value="{{ user.username }}">
+                                <input type="text" name="reason" placeholder="Ban reason" class="ban-reason-input" value="Violation of terms of service">
+                                <button type="submit" class="ban-btn">Ban</button>
+                            </form>
+                            {% elif user.banned %}
+                            <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban</a>
+                            {% else %}
+                            <em>No actions</em>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">No users found</div>
+            {% endif %}
+        </div>
+    </body>
+    </html>
+    ''')
+    
+    context = Context({
+        'users': users,
+        'banned_users': banned_users
+    })
+    
+    return HttpResponse(template.render(context))
+
 def admin_view(request):
     session = get_session(request)
     if not session or 'username' not in session:
@@ -1743,7 +2127,13 @@ def admin_view(request):
         border-bottom: 1px solid var(--border-color);
     }
     
-    .back-btn {
+    .admin-nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .nav-btn {
         background-color: var(--primary-color);
         color: white;
         border: none;
@@ -1754,7 +2144,11 @@ def admin_view(request):
         font-size: 0.9em;
     }
     
-    .back-btn:hover {
+    .nav-btn.active {
+        background-color: #43b581;
+    }
+    
+    .nav-btn:hover {
         background-color: #5b73c4;
     }
     
@@ -1805,7 +2199,12 @@ def admin_view(request):
         <div class="container">
             <div class="user-header">
                 <span>Admin Panel</span>
-                <a href="/" class="back-btn">Back to Chat</a>
+                <a href="/" class="nav-btn">Back to Chat</a>
+            </div>
+            
+            <div class="admin-nav">
+                <a href="/admin" class="nav-btn active">Bulletin Board</a>
+                <a href="/admin/users" class="nav-btn">User Management</a>
             </div>
             
             <h1>Bulletin Board Editor</h1>
@@ -1864,6 +2263,7 @@ urlpatterns = [
     path('profile', profile_view, name='profile'),
     path('user/<str:username>', user_profile_view, name='user_profile'),
     path('admin', admin_view, name='admin'),
+    path('admin/users', admin_users_view, name='admin_users'),  # Add this line
     path('download/<str:filename>', download_file, name='download'),
     path('profile_pic/<str:filename>', profile_pic_view, name='profile_pic'),
 ]
