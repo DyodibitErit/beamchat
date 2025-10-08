@@ -411,6 +411,11 @@ def read_chat_messages():
                             decrypted_data['filename'] = decrypt_data(encrypted_data['filename'])
                         if 'file_url' in encrypted_data:
                             decrypted_data['file_url'] = decrypt_data(encrypted_data['file_url'])
+                        # Add private message fields if they exist
+                        if 'is_private' in encrypted_data:
+                            decrypted_data['is_private'] = decrypt_data(encrypted_data['is_private']) == "True"
+                        if 'target_user' in encrypted_data:
+                            decrypted_data['target_user'] = decrypt_data(encrypted_data['target_user'])
                         messages.append(decrypted_data)
                     except Exception as e:
                         print(f"Error decrypting message: {e}")
@@ -423,6 +428,20 @@ def read_chat_messages():
     except (FileNotFoundError, json.JSONDecodeError):
         pass
     return messages
+
+def handle_private_message(message_text):
+    """
+    Handle private messages using m/username/message syntax.
+    """
+    if message_text.startswith('m/') and '/' in message_text[2:]:
+        parts = message_text[2:].split('/', 1)
+        
+        if len(parts) >= 2:
+            target_username = parts[0]
+            private_message = parts[1]
+            return target_username, private_message
+    
+    return None, None
 
 def handle_message_edit(message_text):
     """
@@ -505,6 +524,35 @@ def save_chat_message(username, message, filename=None, file_url=None):
         
         # If no message was found to edit, treat as a regular message
         message = f"(edit failed) {message}"
+    
+    # Check if this is a private message
+    target_username, private_message = handle_private_message(message)
+    if target_username is not None:
+        # Store private message with special format
+        encrypted_data = {
+            'username': encrypt_data(username),
+            'message': encrypt_data(f"(to {target_username}) {private_message}"),
+            'timestamp': encrypt_data(timestamp),
+            'is_private': encrypt_data("True"),
+            'target_user': encrypt_data(target_username)
+        }
+        
+        if filename and file_url:
+            encrypted_data['filename'] = encrypt_data(filename)
+            encrypted_data['file_url'] = encrypt_data(file_url)
+        
+        with open(CHAT_FILE, 'a', encoding="UTF-8") as f:
+            f.write(json.dumps(encrypted_data) + '\n')
+        
+        return {
+            'username': username,
+            'message': f"(to {target_username}) {private_message}",
+            'timestamp': timestamp,
+            'filename': filename,
+            'file_url': file_url,
+            'is_private': True,
+            'target_user': target_username
+        }
     
     # Encrypt all data for a regular message
     encrypted_data = {
@@ -1371,6 +1419,16 @@ def home_view(request):
     messages = read_chat_messages()
     bulletin_content = read_bulletin()
     
+    # Filter messages for current user (show private messages only to sender and recipient)
+    filtered_messages = []
+    for msg in messages:
+        # If message is private, only show to sender and target user
+        if msg.get('is_private'):
+            if msg['username'] == username or msg.get('target_user') == username:
+                filtered_messages.append(msg)
+        else:
+            filtered_messages.append(msg)
+    
     template = Template('''
     <!DOCTYPE html>
     <html>
@@ -1704,7 +1762,7 @@ def home_view(request):
                     </div>
                     <form method="post" enctype="multipart/form-data" class="chat-form">
                         {% csrf_token %}
-                        <textarea name="message" placeholder="Type your message here... (Use s/old/new to edit your last message)"></textarea>
+                        <textarea name="message" placeholder="Type your message here... (Use s/old/new to edit, m/user/message for private)"></textarea>
                         <div class="form-actions">
                             <input type="file" name="file" class="file-input">
                             <button type="submit" class="submit-btn">Send</button>
@@ -1734,13 +1792,13 @@ def home_view(request):
     ''')
     
     # Add profile picture URLs to messages
-    for msg in messages:
+    for msg in filtered_messages:
         msg['profile_pic_url'] = get_profile_picture_url(msg['username'])
     
     context = Context({
         'username': username,
         'profile_pic_url': profile_pic_url,
-        'messages': messages,
+        'messages': filtered_messages,
         'bulletin_content': bulletin_content,
         'form': form
     })
