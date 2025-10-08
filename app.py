@@ -1672,6 +1672,7 @@ def home_view(request):
     .file-input {
         flex: 1;
         padding: 10px;
+        max-width: 80%;
         border: 1px solid var(--border-color);
         border-radius: 4px;
         background-color: #40444b;
@@ -1765,7 +1766,7 @@ def home_view(request):
                         <textarea name="message" placeholder="Type your message here... (Use s/old/new to edit, m/user/message for private)"></textarea>
                         <div class="form-actions">
                             <input type="file" name="file" class="file-input">
-                            <button type="submit" class="submit-btn">Send</button>
+                            <button type="submit" class="submit-btn">💬</button>
                         </div>
                     </form>
                 </div>
