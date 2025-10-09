@@ -996,7 +996,7 @@ def logout_view(request):
     response = HttpResponseRedirect('/login')
     return logout_user(response)
 
-def profile_view(request):
+def settings_view(request):
     session = get_session(request)
     if not session or 'username' not in session:
         return HttpResponseRedirect('/login')
@@ -1005,25 +1005,34 @@ def profile_view(request):
     user = get_user(username)
     profile_pic_url = get_profile_picture_url(username)
     
+    # Handle profile picture upload
     if request.method == 'POST':
-        form = ProfilePictureForm(request.POST, request.FILES)
-        if form.is_valid():
-            uploaded_file = form.cleaned_data.get('profile_picture')
-            
-            if uploaded_file:
-                # Save the new profile picture
-                filename = save_profile_picture(uploaded_file, username)
-                profile_pic_url = f"/profile_pic/{filename}"
+        if 'profile_picture' in request.FILES:
+            form = ProfilePictureForm(request.POST, request.FILES)
+            if form.is_valid():
+                uploaded_file = form.cleaned_data.get('profile_picture')
                 
-                return HttpResponseRedirect('/profile')
-    else:
-        form = ProfilePictureForm()
+                if uploaded_file:
+                    # Save the new profile picture
+                    filename = save_profile_picture(uploaded_file, username)
+                    profile_pic_url = f"/profile_pic/{filename}"
+                    
+                    return HttpResponseRedirect('/profile')
+    
+    # Get current theme from localStorage or use default
+    current_theme = {
+        'primary': '#7289da',
+        'secondary': '#2c2f33', 
+        'background': '#23272a',
+        'text': '#ffffff',
+        'border': '#40444b'
+    }
     
     template = Template('''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>BEAM - Profile</title>
+        <title>BEAM - Settings</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
     :root {
@@ -1048,7 +1057,7 @@ def profile_view(request):
     }
     
     .container {
-        max-width: 600px;
+        max-width: 800px;
         margin: 0 auto;
         background-color: var(--secondary-color);
         padding: 30px;
@@ -1107,6 +1116,17 @@ def profile_view(request):
         color: var(--primary-color);
     }
     
+    h2 {
+        color: var(--primary-color);
+        margin: 30px 0 15px 0;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .settings-section {
+        margin-bottom: 30px;
+    }
+    
     .profile-section {
         display: flex;
         flex-direction: column;
@@ -1128,7 +1148,75 @@ def profile_view(request):
         max-width: 400px;
     }
     
-    input, button { 
+    .theme-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .theme-control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .theme-control-label {
+        color: var(--text-color);
+        font-weight: bold;
+    }
+    
+    .color-picker-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .color-picker {
+        width: 60px;
+        height: 40px;
+        border: 2px solid var(--border-color);
+        border-radius: 4px;
+        cursor: pointer;
+        background: transparent;
+    }
+    
+    .color-value {
+        color: var(--light-text);
+        font-family: monospace;
+    }
+    
+    .preset-themes {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+    }
+    
+    .preset-theme {
+        padding: 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-align: center;
+        font-weight: bold;
+        border: 2px solid transparent;
+        transition: all 0.2s ease;
+    }
+    
+    .preset-theme:hover {
+        transform: translateY(-2px);
+    }
+    
+    .preset-theme.active {
+        border-color: var(--primary-color);
+    }
+    
+    .theme-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+    }
+    
+    input, button, .theme-btn { 
         display: block; 
         margin-bottom: 15px; 
         width: 100%;
@@ -1147,7 +1235,7 @@ def profile_view(request):
         box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
     }
     
-    button { 
+    button, .theme-btn { 
         background-color: var(--primary-color);
         color: white;
         border: none;
@@ -1157,8 +1245,13 @@ def profile_view(request):
         transition: background-color 0.3s;
     }
     
-    button:hover {
+    button:hover, .theme-btn:hover {
         background-color: #5b73c4;
+    }
+    
+    .theme-btn-secondary {
+        background-color: var(--border-color);
+        color: var(--text-color);
     }
     
     .btn-group {
@@ -1190,6 +1283,14 @@ def profile_view(request):
             margin-bottom: 10px;
             text-align: center;
         }
+        
+        .preset-themes {
+            grid-template-columns: 1fr;
+        }
+        
+        .theme-actions {
+            flex-direction: column;
+        }
     }
 </style>
     </head>
@@ -1197,7 +1298,7 @@ def profile_view(request):
         <div class="container">
             <div class="user-header">
                 <div class="user-info">
-                    <span class="welcome">Profile: {{ username }}</span>
+                    <span class="welcome">Settings: {{ username }}</span>
                 </div>
                 <div class="btn-group">
                     <a href="/" class="back-btn">Back to Chat</a>
@@ -1205,18 +1306,286 @@ def profile_view(request):
                 </div>
             </div>
             
-            <h1>Profile Settings</h1>
+            <h1>Settings</h1>
             
-            <div class="profile-section">
-                <img src="{{ profile_pic_url }}" alt="Profile Picture" class="profile-picture">
+            <!-- Profile Settings Section -->
+            <div class="settings-section">
+                <h2>Profile Settings</h2>
                 
-                <form method="post" enctype="multipart/form-data" class="profile-form">
-                    {% csrf_token %}
-                    <input type="file" name="profile_picture" accept="image/*">
-                    <button type="submit">Update Profile Picture</button>
-                </form>
+                <div class="profile-section">
+                    <img src="{{ profile_pic_url }}" alt="Profile Picture" class="profile-picture">
+                    
+                    <form method="post" enctype="multipart/form-data" class="profile-form">
+                        {% csrf_token %}
+                        <input type="file" name="profile_picture" accept="image/*">
+                        <button type="submit">Update Profile Picture</button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Theme Settings Section -->
+            <div class="settings-section">
+                <h2>Theme Settings</h2>
+                
+                <div class="theme-controls">
+                    <div class="theme-control-group">
+                        <label class="theme-control-label">Primary Color</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="primaryColor" class="color-picker" value="#7289da">
+                            <span id="primaryColorValue" class="color-value">#7289da</span>
+                        </div>
+                    </div>
+                    
+                    <div class="theme-control-group">
+                        <label class="theme-control-label">Secondary Color</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="secondaryColor" class="color-picker" value="#2c2f33">
+                            <span id="secondaryColorValue" class="color-value">#2c2f33</span>
+                        </div>
+                    </div>
+                    
+                    <div class="theme-control-group">
+                        <label class="theme-control-label">Background Color</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="backgroundColor" class="color-picker" value="#23272a">
+                            <span id="backgroundColorValue" class="color-value">#23272a</span>
+                        </div>
+                    </div>
+                    
+                    <div class="theme-control-group">
+                        <label class="theme-control-label">Text Color</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="textColor" class="color-picker" value="#ffffff">
+                            <span id="textColorValue" class="color-value">#ffffff</span>
+                        </div>
+                    </div>
+                    
+                    <div class="theme-control-group">
+                        <label class="theme-control-label">Border Color</label>
+                        <div class="color-picker-container">
+                            <input type="color" id="borderColor" class="color-picker" value="#40444b">
+                            <span id="borderColorValue" class="color-value">#40444b</span>
+                        </div>
+                    </div>
+                    
+                    <div class="theme-control-group">
+                        <label class="theme-control-label">Preset Themes</label>
+                        <div class="preset-themes">
+                            <div class="preset-theme" data-theme="default" style="background: linear-gradient(135deg, #7289da, #2c2f33); color: white;">
+                                Default
+                            </div>
+                            <div class="preset-theme" data-theme="dark" style="background: linear-gradient(135deg, #1a1a1a, #2d2d2d); color: white;">
+                                Dark
+                            </div>
+                            <div class="preset-theme" data-theme="blue" style="background: linear-gradient(135deg, #3498db, #2c3e50); color: white;">
+                                Blue
+                            </div>
+                            <div class="preset-theme" data-theme="green" style="background: linear-gradient(135deg, #27ae60, #2c3e50); color: white;">
+                                Green
+                            </div>
+                            <div class="preset-theme" data-theme="purple" style="background: linear-gradient(135deg, #9b59b6, #2c3e50); color: white;">
+                                Purple
+                            </div>
+                            <div class="preset-theme" data-theme="red" style="background: linear-gradient(135deg, #e74c3c, #2c3e50); color: white;">
+                                Red
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="theme-actions">
+                        <button id="resetTheme" class="theme-btn theme-btn-secondary">Reset Theme</button>
+                        <button id="applyTheme" class="theme-btn">Apply Theme</button>
+                    </div>
+                </div>
             </div>
         </div>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // Color pickers
+                const primaryColor = document.getElementById('primaryColor');
+                const secondaryColor = document.getElementById('secondaryColor');
+                const backgroundColor = document.getElementById('backgroundColor');
+                const textColor = document.getElementById('textColor');
+                const borderColor = document.getElementById('borderColor');
+                
+                // Color value displays
+                const primaryColorValue = document.getElementById('primaryColorValue');
+                const secondaryColorValue = document.getElementById('secondaryColorValue');
+                const backgroundColorValue = document.getElementById('backgroundColorValue');
+                const textColorValue = document.getElementById('textColorValue');
+                const borderColorValue = document.getElementById('borderColorValue');
+                
+                // Buttons
+                const applyThemeBtn = document.getElementById('applyTheme');
+                const resetThemeBtn = document.getElementById('resetTheme');
+                const presetThemes = document.querySelectorAll('.preset-theme');
+                
+                // Load saved theme from localStorage
+                loadTheme();
+                
+                // Update color value displays
+                primaryColor.addEventListener('input', function() {
+                    primaryColorValue.textContent = primaryColor.value;
+                });
+                
+                secondaryColor.addEventListener('input', function() {
+                    secondaryColorValue.textContent = secondaryColor.value;
+                });
+                
+                backgroundColor.addEventListener('input', function() {
+                    backgroundColorValue.textContent = backgroundColor.value;
+                });
+                
+                textColor.addEventListener('input', function() {
+                    textColorValue.textContent = textColor.value;
+                });
+                
+                borderColor.addEventListener('input', function() {
+                    borderColorValue.textContent = borderColor.value;
+                });
+                
+                // Apply theme
+                applyThemeBtn.addEventListener('click', function() {
+                    applyCustomTheme();
+                    alert('Theme applied successfully!');
+                });
+                
+                // Reset theme
+                resetThemeBtn.addEventListener('click', function() {
+                    resetToDefaultTheme();
+                    alert('Theme reset to default!');
+                });
+                
+                // Preset themes
+                presetThemes.forEach(theme => {
+                    theme.addEventListener('click', function() {
+                        // Remove active class from all themes
+                        presetThemes.forEach(t => t.classList.remove('active'));
+                        // Add active class to clicked theme
+                        this.classList.add('active');
+                        
+                        const themeName = this.getAttribute('data-theme');
+                        applyPresetTheme(themeName);
+                    });
+                });
+                
+                function applyCustomTheme() {
+                    const theme = {
+                        primary: primaryColor.value,
+                        secondary: secondaryColor.value,
+                        background: backgroundColor.value,
+                        text: textColor.value,
+                        border: borderColor.value
+                    };
+                    
+                    // Apply theme to CSS variables
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                    
+                    // Save to localStorage
+                    localStorage.setItem('beamTheme', JSON.stringify(theme));
+                }
+                
+                function applyPresetTheme(themeName) {
+                    const themes = {
+                        default: {
+                            primary: '#7289da',
+                            secondary: '#2c2f33',
+                            background: '#23272a',
+                            text: '#ffffff',
+                            border: '#40444b'
+                        },
+                        dark: {
+                            primary: '#1a1a1a',
+                            secondary: '#2d2d2d',
+                            background: '#121212',
+                            text: '#ffffff',
+                            border: '#444444'
+                        },
+                        blue: {
+                            primary: '#3498db',
+                            secondary: '#2c3e50',
+                            background: '#1a252f',
+                            text: '#ffffff',
+                            border: '#34495e'
+                        },
+                        green: {
+                            primary: '#27ae60',
+                            secondary: '#2c3e50',
+                            background: '#1a252f',
+                            text: '#ffffff',
+                            border: '#34495e'
+                        },
+                        purple: {
+                            primary: '#9b59b6',
+                            secondary: '#2c3e50',
+                            background: '#1a252f',
+                            text: '#ffffff',
+                            border: '#34495e'
+                        },
+                        red: {
+                            primary: '#e74c3c',
+                            secondary: '#2c3e50',
+                            background: '#1a252f',
+                            text: '#ffffff',
+                            border: '#34495e'
+                        }
+                    };
+                    
+                    const theme = themes[themeName];
+                    if (theme) {
+                        // Update color pickers
+                        primaryColor.value = theme.primary;
+                        secondaryColor.value = theme.secondary;
+                        backgroundColor.value = theme.background;
+                        textColor.value = theme.text;
+                        borderColor.value = theme.border;
+                        
+                        // Update color value displays
+                        primaryColorValue.textContent = theme.primary;
+                        secondaryColorValue.textContent = theme.secondary;
+                        backgroundColorValue.textContent = theme.background;
+                        textColorValue.textContent = theme.text;
+                        borderColorValue.textContent = theme.border;
+                        
+                        // Apply the theme
+                        applyCustomTheme();
+                    }
+                }
+                
+                function resetToDefaultTheme() {
+                    applyPresetTheme('default');
+                }
+                
+                function loadTheme() {
+                    const savedTheme = localStorage.getItem('beamTheme');
+                    if (savedTheme) {
+                        const theme = JSON.parse(savedTheme);
+                        
+                        // Update color pickers
+                        primaryColor.value = theme.primary;
+                        secondaryColor.value = theme.secondary;
+                        backgroundColor.value = theme.background;
+                        textColor.value = theme.text;
+                        borderColor.value = theme.border;
+                        
+                        // Update color value displays
+                        primaryColorValue.textContent = theme.primary;
+                        secondaryColorValue.textContent = theme.secondary;
+                        backgroundColorValue.textContent = theme.background;
+                        textColorValue.textContent = theme.text;
+                        borderColorValue.textContent = theme.border;
+                        
+                        // Apply the theme
+                        applyCustomTheme();
+                    }
+                }
+            });
+        </script>
     </body>
     </html>
     ''')
@@ -1274,6 +1643,7 @@ def user_profile_view(request, username):
         font-family: Arial, sans-serif; 
         background-color: var(--background-color);
         padding: 20px;
+        transition: all 0.3s ease;
     }
     
     .container {
@@ -1370,6 +1740,23 @@ def user_profile_view(request, username):
                 </div>
             </div>
         </div>
+        
+        <script>
+            // Load saved theme from localStorage
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    
+                    // Apply theme to CSS variables
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+            });
+        </script>
     </body>
     </html>
     ''')
@@ -1455,6 +1842,7 @@ def home_view(request):
         font-family: Arial, sans-serif; 
         background-color: var(--background-color);
         padding: 20px;
+        transition: all 0.3s ease;
     }
     
     .container {
@@ -1730,7 +2118,7 @@ def home_view(request):
                     <span class="welcome">Welcome, {{ username }}!</span>
                 </div>
                 <div class="btn-group">
-                    <a href="/profile" class="btn btn-profile">My Profile</a>
+                    <a href="/settings" class="btn btn-profile">Settings</a>
                     <a href="/logout" class="btn btn-logout">Logout</a>
                 </div>
             </div>
@@ -1787,6 +2175,21 @@ def home_view(request):
             setTimeout(() => {
                 window.location.reload();
             }, 30000);
+            
+            // Load saved theme from localStorage
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    
+                    // Apply theme to CSS variables
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+            });
         </script>
     </body>
     </html>
@@ -2319,7 +2722,7 @@ urlpatterns = [
     path('login', login_view, name='login'),
     path('register', register_view, name='register'),
     path('logout', logout_view, name='logout'),
-    path('profile', profile_view, name='profile'),
+    path('settings', settings_view, name='profile'),
     path('user/<str:username>', user_profile_view, name='user_profile'),
     path('admin', admin_view, name='admin'),
     path('admin/users', admin_users_view, name='admin_users'),  # Add this line
