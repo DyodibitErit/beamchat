@@ -331,7 +331,10 @@ def generate_default_profile_picture(username, size=200):
     return filename
 
 def save_profile_picture(uploaded_file, username):
-    """Save an uploaded profile picture"""
+    """Save an uploaded profile picture and remove the old one"""
+    user = get_user(username)
+    old_filename = user.get('profile_picture') if user else None
+    
     # Generate a unique filename
     file_ext = os.path.splitext(uploaded_file.name)[1].lower()
     if file_ext not in ['.jpg', '.jpeg', '.png', '.gif']:
@@ -340,10 +343,27 @@ def save_profile_picture(uploaded_file, username):
     filename = f"{username}_profile_{uuid.uuid4().hex[:8]}{file_ext}"
     filepath = os.path.join(PROFILE_PICS_DIR, filename)
     
-    # Save the file
+    # Save the new file
     with open(filepath, 'wb+') as destination:
         for chunk in uploaded_file.chunks():
             destination.write(chunk)
+    
+    # Remove the old profile picture if it exists and is not a default one
+    if old_filename:
+        # Check if it's a default profile picture (either old format or new format)
+        is_default = (
+            old_filename.startswith(f"{username}_default_") or 
+            "default" in old_filename.lower()
+        )
+        
+        if not is_default:
+            old_filepath = os.path.join(PROFILE_PICS_DIR, old_filename)
+            try:
+                if os.path.exists(old_filepath):
+                    os.remove(old_filepath)
+                    print(f"Removed old profile picture: {old_filename}")
+            except OSError as e:
+                print(f"Error removing old profile picture {old_filename}: {e}")
     
     # Update user's profile picture in the database
     update_user_profile_picture(username, filename)
@@ -1017,7 +1037,7 @@ def settings_view(request):
                     filename = save_profile_picture(uploaded_file, username)
                     profile_pic_url = f"/profile_pic/{filename}"
                     
-                    return HttpResponseRedirect('/profile')
+                    return HttpResponseRedirect('/settings')
     
     # Get current theme from localStorage or use default
     current_theme = {
@@ -2725,7 +2745,7 @@ urlpatterns = [
     path('settings', settings_view, name='profile'),
     path('user/<str:username>', user_profile_view, name='user_profile'),
     path('admin', admin_view, name='admin'),
-    path('admin/users', admin_users_view, name='admin_users'),  # Add this line
+    path('admin/users', admin_users_view, name='admin_users'),  
     path('download/<str:filename>', download_file, name='download'),
     path('profile_pic/<str:filename>', profile_pic_view, name='profile_pic'),
 ]
