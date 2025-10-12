@@ -9,6 +9,10 @@ from django.template import Template, Context
 from django import forms
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+import ssl
+import socket
+from django.core.servers.basehttp import WSGIServer, WSGIRequestHandler
+from django.core.handlers.wsgi import WSGIHandler
 import uuid
 import base64
 import threading
@@ -22,6 +26,138 @@ import random
 import string
 from PIL import Image, ImageDraw, ImageFont
 import io
+
+class SSLWSGIServer(WSGIServer):
+    """WSGI server with SSL support"""
+    
+    def __init__(self, *args, **kwargs):
+        self.certfile = kwargs.pop('certfile', None)
+        self.keyfile = kwargs.pop('keyfile', None)
+        super().__init__(*args, **kwargs)
+        
+    def get_request(self):
+        client, addr = super().get_request()
+        if self.certfile and self.keyfile:
+            # Wrap the socket with SSL
+            context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            context.load_cert_chain(self.certfile, self.keyfile)
+            context.options |= ssl.OP_NO_SSLv2
+            context.options |= ssl.OP_NO_SSLv3
+            context.options |= ssl.OP_NO_TLSv1
+            context.options |= ssl.OP_NO_TLSv1_1
+            context.set_ciphers('ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!eNULL:!RC4:!MD5:!3DES')
+            
+            ssl_socket = context.wrap_socket(client, server_side=True)
+            return ssl_socket, addr
+        
+        return client, addr
+
+class SSLWSGIRequestHandler(WSGIRequestHandler):
+    """Request handler for SSL connections"""
+    
+    def setup(self):
+        self.connection = self.request
+        self.rfile = self.connection.makefile('rb', -1)
+        self.wfile = self.connection.makefile('wb', 0)
+
+def generate_self_signed_cert(certfile='cert.pem', keyfile='key.pem'):
+    """Generate a self-signed SSL certificate for development"""
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    import datetime
+    
+    # Generate private key
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+    
+    # Create self-signed certificate
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "State"),
+        x509.NameAttribute(NameOID.LOCALITY_NAME, "City"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "BEAM Chat"),
+        x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
+    ])
+    
+    certificate = x509.CertificateBuilder().subject_name(
+        subject
+    ).issuer_name(
+        issuer
+    ).public_key(
+        private_key.public_key()
+    ).serial_number(
+        x509.random_serial_number()
+    ).not_valid_before(
+        datetime.datetime.utcnow()
+    ).not_valid_after(
+        datetime.datetime.utcnow() + datetime.timedelta(days=365)
+    ).add_extension(
+        x509.SubjectAlternativeName([
+            x509.DNSName("localhost"),
+            x509.DNSName("127.0.0.1"),
+        ]),
+        critical=False,
+    ).sign(private_key, hashes.SHA256())
+    
+    # Write certificate file
+    with open(certfile, "wb") as f:
+        f.write(certificate.public_bytes(serialization.Encoding.PEM))
+    
+    # Write private key file
+    with open(keyfile, "wb") as f:
+        f.write(private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
+    
+    return certfile, keyfile
+
+def run_https_server(host='0.0.0.0', port=8443, certfile=None, keyfile=None):
+    """Run the Django application with HTTPS support"""
+    
+    # Generate self-signed certificate if not provided
+    if not certfile or not keyfile:
+        print("Generating self-signed SSL certificate...")
+        certfile, keyfile = generate_self_signed_cert()
+        print(f"Certificate generated: {certfile}, {keyfile}")
+    
+    # Verify certificate files exist
+    if not os.path.exists(certfile) or not os.path.exists(keyfile):
+        raise FileNotFoundError("SSL certificate or key file not found")
+    
+    print(f"Starting HTTPS server on https://{host}:{port}")
+    print("Using SSL certificate:", certfile)
+    print("Using SSL key:", keyfile)
+    
+    # Create SSL server
+    server = SSLWSGIServer(
+        (host, port),
+        SSLWSGIRequestHandler,
+        certfile=certfile,
+        keyfile=keyfile
+    )
+    
+    # Set application
+    server.set_app(application)
+    
+    # Start server
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down server...")
+    finally:
+        server.server_close()
+
+def run_http_server(host='0.0.0.0', port=8000):
+    """Run the Django application with HTTP (for development)"""
+    print(f"Starting HTTP server on http://{host}:{port}")
+    from django.core.management import execute_from_command_line
+    execute_from_command_line([__file__, 'runserver', f'{host}:{port}'])
 
 # Configure Django settings
 settings.configure(
@@ -2755,11 +2891,30 @@ application = get_wsgi_application()
 
 if __name__ == '__main__':
     import sys
-    from django.core.management import execute_from_command_line
+    import argparse
     
     # Start localtunnel if enabled
     if USE_LOCALTUNNEL:
         start_localtunnel()
     
-    # Run the Django development server
-    execute_from_command_line([sys.argv[0], 'runserver', '0.0.0.0:8000'])
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='BEAM Chat Server')
+    parser.add_argument('--https', action='store_true', help='Run with HTTPS')
+    parser.add_argument('--port', type=int, default=8443, help='Port to run on (default: 8443 for HTTPS, 8000 for HTTP)')
+    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
+    parser.add_argument('--certfile', help='SSL certificate file')
+    parser.add_argument('--keyfile', help='SSL private key file')
+    
+    args = parser.parse_args()
+    
+    if args.https:
+        # Run with HTTPS
+        run_https_server(
+            host=args.host,
+            port=args.port,
+            certfile=args.certfile,
+            keyfile=args.keyfile
+        )
+    else:
+        # Run with HTTP (development)
+        run_http_server(host=args.host, port=args.port or 8000)

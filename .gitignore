@@ -4,6 +4,10 @@ bulletin_board.txt
 users.json
 encryption.key
 
+# SSL Sertificates
+cert.pem
+key.pem
+
 # Upload directories
 uploads/
 profile_pics/

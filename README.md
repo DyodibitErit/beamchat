@@ -25,4 +25,4 @@ A secure, encrypted messaging and bulletin board application built with Django t
 3. Install required dependencies:
 
 ```bash
-pip install django cryptography
+pip install django cryptography ssl
