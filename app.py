@@ -2901,7 +2901,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='BEAM Chat Server')
     parser.add_argument('--https', action='store_true', help='Run with HTTPS')
     parser.add_argument('--port', type=int, default=8443, help='Port to run on (default: 8443 for HTTPS, 8000 for HTTP)')
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
+    parser.add_argument('--host', default='localhost', help='Host to bind to (default: localhost)')
     parser.add_argument('--certfile', help='SSL certificate file')
     parser.add_argument('--keyfile', help='SSL private key file')
     
