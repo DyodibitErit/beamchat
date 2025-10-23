@@ -249,7 +249,7 @@ class LoginForm(forms.Form):
     password = forms.CharField(widget=forms.PasswordInput)
 
 class RegisterForm(forms.Form):
-    username = forms.CharField(max_length=50)
+    username = forms.CharField(max_length=10)
     password = forms.CharField(widget=forms.PasswordInput)
     confirm_password = forms.CharField(widget=forms.PasswordInput)
 
@@ -2904,6 +2904,7 @@ if __name__ == '__main__':
     parser.add_argument('--host', default='localhost', help='Host to bind to (default: localhost)')
     parser.add_argument('--certfile', help='SSL certificate file')
     parser.add_argument('--keyfile', help='SSL private key file')
+
     
     args = parser.parse_args()
     
