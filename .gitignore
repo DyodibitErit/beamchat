@@ -3,6 +3,7 @@ chat_messages.txt
 bulletin_board.txt
 users.json
 encryption.key
+bsm.json
 
 # SSL Sertificates
 cert.pem

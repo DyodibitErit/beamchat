@@ -26,6 +26,9 @@ import random
 import string
 from PIL import Image, ImageDraw, ImageFont
 import io
+import requests
+import threading
+from urllib.parse import urlparse
 
 class SSLWSGIServer(WSGIServer):
     """WSGI server with SSL support"""
@@ -188,9 +191,10 @@ UPLOAD_DIR = 'uploads'
 PROFILE_PICS_DIR = 'profile_pics'
 ENCRYPTION_KEY_FILE = 'encryption.key'
 SESSION_COOKIE_NAME = 'beam_session'
-BASE_URL = "http://localhost:8000"  # Change this to your public URL if needed
 USE_LOCALTUNNEL = False  # Set to True to enable localtunnel
 LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
+BSM_FILE = 'bsm.json'
+BSM_VALIDATION_TIMEOUT = 10  # seconds
 
 # Encryption setup
 def get_encryption_key():
@@ -230,6 +234,10 @@ for file in [CHAT_FILE, BULLETIN_FILE, USERS_FILE]:
                 f.write('{}')
             else:
                 f.write('')
+
+if not os.path.exists(BSM_FILE):
+    with open(BSM_FILE, 'w') as f:
+        f.write('[]')
 
 # Create upload directory if it doesn't exist
 if not os.path.exists(UPLOAD_DIR):
@@ -281,6 +289,177 @@ def verify_password(stored_password, provided_password):
         return hmac.compare_digest(stored_password, new_hash)
     except:
         return False
+    
+def read_bsm_messages():
+    """Read BSM messages from encrypted file"""
+    try:
+        with open(BSM_FILE, 'r', encoding="UTF-8") as f:
+            encrypted_data = f.read()
+            if encrypted_data:
+                decrypted_data = decrypt_data(encrypted_data)
+                return json.loads(decrypted_data)
+            return []
+    except (FileNotFoundError, Exception):
+        # Try to read as plaintext for backward compatibility
+        try:
+            with open(BSM_FILE, 'r', encoding="UTF-8") as f:
+                plain_data = f.read()
+                if plain_data:
+                    return json.loads(plain_data)
+                return []
+        except (FileNotFoundError, json.JSONDecodeError):
+            return []
+
+def save_bsm_messages(messages):
+    """Save BSM messages to encrypted file"""
+    encrypted_data = encrypt_data(json.dumps(messages))
+    with open(BSM_FILE, 'w', encoding="UTF-8") as f:
+        f.write(encrypted_data)
+
+def parse_beam_number(beam_number):
+    """
+    Parse beam number format: +server_ip xxx-xxx-xxx
+    Returns: (server_url, local_number) or (None, None) if invalid
+    """
+    try:
+        if not beam_number.startswith('+'):
+            return None, None
+        
+        parts = beam_number[1:].split(' ', 1)
+        if len(parts) != 2:
+            return None, None
+        
+        server_part, number_part = parts
+        
+        # Validate number format (xxx-xxx-xxx)
+        if not all(part.isdigit() for part in number_part.split('-')):
+            return None, None
+        
+        # Different server - assume HTTP if not specified
+        server_url = server_part
+        if not server_url.startswith(('http://', 'https://')):
+            server_url = f"http://{server_url}"
+        
+        # Validate URL format
+        parsed = urlparse(server_url)
+        if not parsed.netloc:
+            return None, None
+            
+        return server_url, number_part
+        
+    except Exception:
+        return None, None
+
+
+def generate_message_id():
+    """Generate unique message ID"""
+    return str(uuid.uuid4())
+
+def send_bsm_message(sender, recipient_beam_number, message_text, sender_server_url=None):
+    """
+    Send BSM message to recipient
+    Returns: (success, message_id, error_message)
+    """
+    # Note: sender_server_url is now optional and will be handled by frontend
+    
+    recipient_server_url, recipient_local_number = parse_beam_number(recipient_beam_number)
+    
+    if not recipient_local_number:
+        return False, None, "Invalid beam number format"
+    
+    message_id = generate_message_id()
+    timestamp = datetime.now().isoformat()
+    
+    # Create message object
+    message_data = {
+        'message_id': message_id,
+        'sender': sender,
+        'sender_server': sender_server_url,
+        'recipient_beam_number': recipient_beam_number,
+        'recipient_local_number': recipient_local_number,
+        'message': message_text,
+        'timestamp': timestamp,
+        'status': 'sent',
+        'validation_status': 'pending'
+    }
+    
+    # Save message locally first
+    messages = read_bsm_messages()
+    messages.append(message_data)
+    save_bsm_messages(messages)
+    
+    # All messages are handled by frontend JavaScript now
+    return True, message_id, "Message prepared for delivery via frontend"
+
+def update_message_status(message_id, status, validation_status=None):
+    """Update message status"""
+    messages = read_bsm_messages()
+    for msg in messages:
+        if msg['message_id'] == message_id:
+            msg['status'] = status
+            if validation_status:
+                msg['validation_status'] = validation_status
+            break
+    save_bsm_messages(messages)
+
+def validate_message_delivery(message_id, recipient_server_url):
+    """Validate that message was properly received by recipient server"""
+    try:
+        # Wait a moment for the recipient server to process the message
+        time.sleep(2)
+        
+        # Request validation from recipient server
+        response = requests.get(
+            f"{recipient_server_url}/bsm/validate/{message_id}",
+            timeout=BSM_VALIDATION_TIMEOUT
+        )
+        
+        if response.status_code == 200:
+            validation_data = response.json()
+            
+            if validation_data.get('valid') and validation_data.get('message_id') == message_id:
+                update_message_status(message_id, 'delivered', 'validated')
+            else:
+                update_message_status(message_id, 'delivered', 'validation_failed: invalid_response')
+        else:
+            update_message_status(message_id, 'delivered', f'validation_failed: http_{response.status_code}')
+            
+    except requests.exceptions.RequestException as e:
+        update_message_status(message_id, 'delivered', f'validation_failed: {str(e)}')
+
+def get_message_by_id(message_id):
+    """Get message by ID"""
+    messages = read_bsm_messages()
+    for msg in messages:
+        if msg['message_id'] == message_id:
+            return msg
+    return None
+
+def get_user_bsm_messages(username):
+    """Get all BSM messages for a user (both sent and received)"""
+    messages = read_bsm_messages()
+    user_messages = []
+    
+    # Get the user's beam number to match incoming messages
+    user_beam_number = get_user_beam_number(username)
+    
+    for msg in messages:
+        # Messages sent by user
+        if msg['sender'] == username:
+            user_messages.append(msg)
+        # Messages received by user - check if recipient beam number matches user's beam number
+        elif msg.get('recipient_local_number') and user_beam_number:
+            # Check if the local number part matches user's beam number
+            if msg['recipient_local_number'] == user_beam_number:
+                user_messages.append(msg)
+        # Also check if recipient_beam_number contains user's beam number (for cross-server messages)
+        elif msg.get('recipient_beam_number') and user_beam_number:
+            # Extract just the number part from recipient_beam_number (format: +server number)
+            beam_parts = msg['recipient_beam_number'].split(' ')
+            if len(beam_parts) == 2 and beam_parts[1] == user_beam_number:
+                user_messages.append(msg)
+    
+    return sorted(user_messages, key=lambda x: x['timestamp'], reverse=True)
     
 def ban_user(username, reason="Violation of terms of service"):
     """Ban a user from the system"""
@@ -365,6 +544,27 @@ def save_users(users):
     with open(USERS_FILE, 'w', encoding="UTF-8") as f:
         f.write(encrypted_data)
 
+def generate_unique_beam_number():
+    """Generate a unique beam number in format: xxx-xxx-xxx"""
+    users = read_users()
+    
+    while True:
+        # Generate random number parts
+        part1 = ''.join(random.choices('0123456789', k=3))
+        part2 = ''.join(random.choices('0123456789', k=3))
+        part3 = ''.join(random.choices('0123456789', k=3))
+        beam_number = f"{part1}-{part2}-{part3}"
+        
+        # Check if this number is already assigned
+        number_exists = False
+        for user_data in users.values():
+            if user_data.get('beam_number') == beam_number:
+                number_exists = True
+                break
+        
+        if not number_exists:
+            return beam_number
+
 def create_user(username, password):
     """Create a new user"""
     users = read_users()
@@ -374,11 +574,15 @@ def create_user(username, password):
     # Generate a default profile picture
     profile_pic_filename = generate_default_profile_picture(username)
     
+    # Generate a beam number for the new user
+    beam_number = generate_unique_beam_number()
+    
     users[username] = {
         'password_hash': hash_password(password),
         'created_at': datetime.now().isoformat(),
         'last_login': None,
-        'profile_picture': profile_pic_filename
+        'profile_picture': profile_pic_filename,
+        'beam_number': beam_number  # Actually generate and store the beam number
     }
     save_users(users)
     return True, "User created successfully"
@@ -733,6 +937,22 @@ def save_chat_message(username, message, filename=None, file_url=None):
         'file_url': file_url
     }
 
+def get_user_beam_number(username):
+    """Get the beam number for a user"""
+    users = read_users()
+    
+    if username not in users:
+        return None
+    
+    return users[username].get('beam_number')
+
+def get_full_beam_number(username):
+    """Get full beam number with server prefix"""
+    beam_number = get_user_beam_number(username)
+    if beam_number:
+        return beam_number
+    return None
+
 def read_bulletin():
     try:
         with open(BULLETIN_FILE, 'r', encoding="UTF-8") as f:
@@ -791,7 +1011,1102 @@ def start_localtunnel():
         thread = threading.Thread(target=run_localtunnel, daemon=True)
         thread.start()
 
+def get_current_server_url(request):
+    """Get the current server's URL from the request"""
+    scheme = 'https' if request.is_secure() else 'http'
+    host = request.get_host()
+    return f"{scheme}://{host}"
+
 # Views
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@csrf_exempt
+@require_http_methods(["POST"])
+def bsm_receive_message(request):
+    """Receive BSM message from another server or frontend"""
+    try:
+        # Handle both JSON and form data
+        if request.content_type == 'application/json':
+            data = json.loads(request.body)
+        else:
+            # Fallback to form data
+            data = {
+                'sender': request.POST.get('sender'),
+                'sender_server': request.POST.get('sender_server'),
+                'recipient_beam_number': request.POST.get('recipient_beam_number'),
+                'message': request.POST.get('message'),
+                'timestamp': request.POST.get('timestamp')
+            }
+        
+        # Validate required fields
+        required_fields = ['sender', 'sender_server', 'recipient_beam_number', 'message', 'timestamp']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return JsonResponse({'error': f'Missing field: {field}'}, status=400)
+        
+        # Generate message ID if not provided (for frontend requests)
+        message_id = data.get('message_id') or generate_message_id()
+        
+        # Parse recipient beam number to extract local number
+        recipient_server_url, recipient_local_number = parse_beam_number(data['recipient_beam_number'])
+        
+        # Add received message
+        message_data = {
+            'message_id': message_id,
+            'sender': data['sender'],
+            'sender_server': data['sender_server'],
+            'recipient_beam_number': data['recipient_beam_number'],
+            'recipient_local_number': recipient_local_number,  # Store the local number for matching
+            'message': data['message'],
+            'timestamp': data['timestamp'],
+            'status': 'received',
+            'validation_status': 'pending_validation'
+        }
+        
+        messages = read_bsm_messages()
+        messages.append(message_data)
+        save_bsm_messages(messages)
+        
+        # Start validation if it's from another server
+        current_server_url = get_current_server_url(request)
+        if data['sender_server'] != current_server_url:
+            threading.Thread(
+                target=validate_message_delivery,
+                args=(message_id, data['sender_server']),
+                daemon=True
+            ).start()
+        
+        return JsonResponse({'status': 'received', 'message_id': message_id})
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@require_http_methods(["GET"])
+def bsm_validate_message(request, message_id):
+    """Validate message existence for sender server"""
+    try:
+        message = get_message_by_id(message_id)
+        
+        if message:
+            return JsonResponse({
+                'valid': True,
+                'message_id': message_id,
+                'sender': message['sender'],
+                'recipient_beam_number': message['recipient_beam_number']
+            })
+        else:
+            return JsonResponse({'valid': False, 'error': 'Message not found'}, status=404)
+            
+    except Exception as e:
+        return JsonResponse({'valid': False, 'error': str(e)}, status=500)
+
+def bsm_profile_view(request):
+    """View for displaying user's BSM profile and number"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    beam_number = get_user_beam_number(username)
+    full_beam_number = f"+{get_current_server_url(request)} {beam_number}" if beam_number else None
+    profile_pic_url = get_profile_picture_url(username)
+    
+    # Get message statistics
+    user_messages = get_user_bsm_messages(username)
+    sent_count = len([msg for msg in user_messages if msg['sender'] == username])
+    received_count = len([msg for msg in user_messages if msg['sender'] != username])
+    
+    template = Template('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - My BSM Profile</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .profile-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    
+    .profile-picture {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 20px;
+        border: 3px solid var(--primary-color);
+    }
+    
+    .beam-number-display {
+        background: linear-gradient(135deg, var(--primary-color), #5b73c4);
+        padding: 30px;
+        border-radius: 12px;
+        text-align: center;
+        margin: 20px 0;
+        border: 2px solid var(--border-color);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+    
+    .beam-number-label {
+        color: var(--light-text);
+        font-size: 1.1em;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .beam-number {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: white;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        margin: 10px 0;
+    }
+    
+    .server-info {
+        color: var(--light-text);
+        font-size: 0.9em;
+        margin-top: 10px;
+    }
+    
+    .server-url {
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-family: monospace;
+        margin: 5px 0;
+        word-break: break-all;
+    }
+    
+    .info-box {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .info-title {
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 10px;
+        font-size: 1.1em;
+    }
+    
+    .info-text {
+        color: var(--light-text);
+        line-height: 1.5;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .btn-copy {
+        background-color: #43b581;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    
+    .btn-copy:hover {
+        background-color: #3ca374;
+    }
+    
+    .copy-success {
+        color: #43b581;
+        font-weight: bold;
+        margin-top: 10px;
+        display: none;
+    }
+    
+    @media (max-width: 600px) {
+        .container {
+            padding: 20px;
+        }
+        
+        .beam-number {
+            font-size: 2em;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+        }
+        
+        .nav-btn {
+            margin-left: 0;
+            margin-bottom: 5px;
+        }
+    }
+</style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="user-header">
+                <span style="color: var(--text-color); font-weight: bold;">My BSM Profile</span>
+                <div>
+                    <a href="/bsm/send" class="nav-btn">Send Message</a>
+                    <a href="/bsm/inbox" class="nav-btn">Inbox</a>
+                    <a href="/" class="nav-btn">Back to Chat</a>
+                </div>
+            </div>
+            
+            <h1>Between Server Messaging</h1>
+            
+            <div class="profile-section">
+                <img src="{{ profile_pic_url }}" alt="Profile Picture" class="profile-picture">
+            </div>
+            
+            {% if full_beam_number %}
+            <div class="beam-number-display">
+                <div class="beam-number-label">Your Beam Number</div>
+                <div class="beam-number" id="beamNumber">{{ full_beam_number }}</div>
+                <div class="server-info">
+                    Current Server: 
+                    <div class="server-url" id="currentServerUrl">Detecting...</div>
+                    <div style="margin-top: 10px; font-size: 0.8em;">
+                        The frontend automatically detects and uses this server URL for messaging
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn-copy" onclick="copyBeamNumber()">Copy Beam Number</button>
+                <button class="btn-copy" onclick="copyServerUrl()">Copy Server URL</button>
+                <a href="/bsm/send" class="nav-btn">Send Test Message</a>
+            </div>
+            
+            <div class="copy-success" id="copySuccess">
+                ✓ Copied to clipboard!
+            </div>
+            {% else %}
+            <div class="beam-number-display">
+                <div class="beam-number-label">Beam Number Unavailable</div>
+                <div class="beam-number" style="color: #f04747;">Error - No beam number assigned</div>
+            </div>
+            {% endif %}
+            
+            <div class="info-box">
+                <div class="info-title">Frontend BSM System</div>
+                <div class="info-text">
+                    • <strong>Your Beam Number:</strong> <span id="displayBeamNumber">{{ full_beam_number }}</span><br>
+                    • <strong>Server Detection:</strong> Frontend automatically detects server URL<br>
+                    • <strong>Cross-Server Messaging:</strong> Frontend POSTs directly to target servers<br>
+                    • <strong>Validation:</strong> Servers validate messages via GET requests<br>
+                    • <strong>No Backend Dependency:</strong> Cross-server messages don't use your server's backend
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <div class="info-title">Message Statistics</div>
+                <div class="info-text">
+                    • Total BSM Messages: <strong>{{ user_messages|length }}</strong><br>
+                    • Messages Sent: <strong>{{ sent_count }}</strong><br>
+                    • Messages Received: <strong>{{ received_count }}</strong>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            function copyBeamNumber() {
+                const beamNumber = document.getElementById('beamNumber').textContent;
+                navigator.clipboard.writeText(beamNumber).then(function() {
+                    showCopySuccess('Beam number copied to clipboard!');
+                }).catch(function(err) {
+                    alert('Failed to copy beam number: ' + err);
+                });
+            }
+            
+            function copyServerUrl() {
+                const serverUrl = window.location.origin;
+                navigator.clipboard.writeText(serverUrl).then(function() {
+                    showCopySuccess('Server URL copied to clipboard!');
+                }).catch(function(err) {
+                    alert('Failed to copy server URL: ' + err);
+                });
+            }
+            
+            function showCopySuccess(message) {
+                const successElement = document.getElementById('copySuccess');
+                successElement.textContent = '✓ ' + message;
+                successElement.style.display = 'block';
+                setTimeout(() => {
+                    successElement.style.display = 'none';
+                }, 3000);
+            }
+            
+            // Load saved theme and display server information
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+                
+                // Display current server information
+                const currentServerUrl = document.getElementById('currentServerUrl');
+                currentServerUrl.textContent = window.location.origin;
+                
+                console.log('Frontend BSM System Ready:');
+                console.log('Beam Number:', document.getElementById('beamNumber').textContent);
+                console.log('Server URL:', window.location.origin);
+                console.log('Frontend can send POST requests to any server');
+            });
+        </script>
+    </body>
+    </html>
+    ''')
+    
+    context = Context({
+        'username': username,
+        'beam_number': beam_number,
+        'full_beam_number': full_beam_number,
+        'profile_pic_url': profile_pic_url,
+        'user_messages': user_messages,
+        'sent_count': sent_count,
+        'received_count': received_count
+    })
+    
+    return HttpResponse(template.render(context))
+def bsm_send_view(request):
+    """View for sending BSM messages - ALL messages via frontend JavaScript"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    error = None
+    success = None
+    message_id = None
+    
+    if request.method == 'POST':
+        # Only process messages that were sent via frontend JavaScript
+        # Traditional form submission is no longer used
+        error = "All BSM messages must be sent using the client-side JavaScript button"
+    
+    template = Template('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - Send BSM Message</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--text-color);
+        font-weight: bold;
+    }
+    
+    input, textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 1em;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    textarea {
+        height: 150px;
+        resize: vertical;
+    }
+    
+    input:focus, textarea:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+    }
+    
+    .submit-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+        border-radius: 4px;
+        width: 100%;
+        font-size: 1.1em;
+    }
+    
+    .submit-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    .alert {
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .alert-error {
+        background-color: rgba(240, 71, 71, 0.1);
+        border: 1px solid rgba(240, 71, 71, 0.3);
+        color: #f04747;
+    }
+    
+    .alert-success {
+        background-color: rgba(67, 181, 129, 0.1);
+        border: 1px solid rgba(67, 181, 129, 0.3);
+        color: #43b581;
+    }
+    
+    .info-box {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .info-title {
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 8px;
+    }
+    
+    .info-text {
+        color: var(--light-text);
+        font-size: 0.9em;
+        line-height: 1.4;
+    }
+    
+    .message-id {
+        font-family: monospace;
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+    
+    .server-info {
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 0.9em;
+    }
+</style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="user-header">
+                <span style="color: var(--text-color); font-weight: bold;">Send BSM Message</span>
+                <div>
+                    <a href="/bsm/inbox" class="nav-btn">Inbox</a>
+                    <a href="/" class="nav-btn">Back to Chat</a>
+                </div>
+            </div>
+            
+            <h1>Between Server Message</h1>
+            
+            <div class="info-box">
+                <div class="info-title">Current Server Information</div>
+                <div class="server-info" id="currentServerInfo">
+                    Detecting server URL...
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <div class="info-title">Beam Number Format:</div>
+                <div class="info-text">
+                    • Format: <strong>+server_url xxx-xxx-xxx</strong><br>
+                    • Example: <strong>+192.168.1.100 123-456-789</strong><br>
+                    • Example: <strong>+https://myserver.com 123-456-789</strong><br>
+                    • All messages are sent via client-side JavaScript
+                </div>
+            </div>
+            
+            {% if error %}
+            <div class="alert alert-error">
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            {% if success %}
+            <div class="alert alert-success">
+                {{ success }}
+                {% if message_id %}
+                <br><br>Message ID: <span class="message-id">{{ message_id }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- JavaScript-based sending for ALL messages -->
+            <div class="form-group">
+                <label for="recipient_beam_number">Recipient Beam Number:</label>
+                <input type="text" id="recipient_beam_number" name="recipient_beam_number" 
+                       placeholder="+192.168.1.100 123-456-789 or +https://myserver.com 123-456-789" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="message_text">Message:</label>
+                <textarea id="message_text" name="message_text" placeholder="Type your message here..." required></textarea>
+            </div>
+            
+            <button type="button" id="jsSendBtn" class="submit-btn">Send Message (JavaScript)</button>
+            <div id="jsResult" style="margin-top: 15px;"></div>
+        </div>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+                
+                // Display current server information
+                const currentServerInfo = document.getElementById('currentServerInfo');
+                currentServerInfo.textContent = `Server URL: ${window.location.origin}`;
+                
+                // Setup JavaScript-based sending for ALL messages
+                const jsSendBtn = document.getElementById('jsSendBtn');
+                const jsResult = document.getElementById('jsResult');
+                const recipientInput = document.getElementById('recipient_beam_number');
+                const messageInput = document.getElementById('message_text');
+                
+                jsSendBtn.addEventListener('click', async function() {
+                    const recipient = recipientInput.value.trim();
+                    const message = messageInput.value.trim();
+                    
+                    if (!recipient || !message) {
+                        showResult('Please fill in both recipient and message fields.', 'error');
+                        return;
+                    }
+                    
+                    if (!recipient.startsWith('+')) {
+                        showResult('Beam number must start with + followed by server URL', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        jsSendBtn.disabled = true;
+                        jsSendBtn.textContent = 'Sending...';
+                        
+                        // Parse the beam number to determine target server
+                        const beamNumber = recipient;
+                        let targetServer, localNumber;
+                        
+                        if (beamNumber.startsWith('+')) {
+                            // Extract server from beam number
+                            const parts = beamNumber.substring(1).split(' ', 1);
+                            if (parts.length < 1) {
+                                throw new Error('Invalid beam number format');
+                            }
+                            targetServer = parts[0];
+                            // Add protocol if missing
+                            if (!targetServer.startsWith('http://') && !targetServer.startsWith('https://')) {
+                                targetServer = 'http://' + targetServer;
+                            }
+                            localNumber = beamNumber.substring(parts[0].length + 2); // +2 for "+" and space
+                        } else {
+                            throw new Error('Invalid beam number format - must start with +');
+                        }
+                        
+                        // Prepare the message payload
+                        const payload = {
+                            sender: '{{ username }}',
+                            sender_server: window.location.origin,
+                            recipient_beam_number: beamNumber,
+                            message: message,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        console.log('Frontend sending to server:', targetServer);
+                        console.log('From server:', window.location.origin);
+                        console.log('Payload:', payload);
+                        
+                        // Send POST request directly to target server from frontend
+                        const response = await fetch(`${targetServer}/bsm/receive`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            showResult(`Message sent successfully to ${targetServer}! Message ID: ${result.message_id}`, 'success');
+                            
+                            // Clear form on success
+                            recipientInput.value = '';
+                            messageInput.value = '';
+                        } else {
+                            const errorText = await response.text();
+                            throw new Error(`Server responded with ${response.status}: ${errorText}`);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error sending message:', error);
+                        showResult(`Failed to send message: ${error.message}`, 'error');
+                    } finally {
+                        jsSendBtn.disabled = false;
+                        jsSendBtn.textContent = 'Send Message (JavaScript)';
+                    }
+                });
+                
+                function showResult(message, type) {
+                    jsResult.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+                    setTimeout(() => {
+                        jsResult.innerHTML = '';
+                    }, 10000);
+                }
+            });
+        </script>
+    </body>
+    </html>
+    ''')
+    
+    context = Context({
+        'username': username,
+        'error': error,
+        'success': success,
+        'message_id': message_id
+    })
+    
+    return HttpResponse(template.render(context))
+def bsm_inbox_view(request):
+    """View for displaying BSM messages"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    messages = get_user_bsm_messages(username)
+    
+    # Pre-process messages for template
+    processed_messages = []
+    for msg in messages:
+        # Extract validation status class
+        validation_status = msg.get('validation_status', 'pending')
+        if ':' in validation_status:
+            validation_class = validation_status.split(':')[0]
+        else:
+            validation_class = validation_status
+        
+        # Determine message direction and format display
+        is_sent = msg['sender'] == username
+        if is_sent:
+            direction = 'sent'
+            display_recipient = msg.get('recipient_beam_number', 'Unknown recipient')
+        else:
+            direction = 'received' 
+            display_sender = f"{msg['sender']} ({msg.get('sender_server', 'Unknown server')})"
+        
+        processed_msg = msg.copy()
+        processed_msg['validation_class'] = validation_class
+        processed_msg['direction'] = direction
+        processed_msg['is_sent'] = is_sent
+        if is_sent:
+            processed_msg['display_recipient'] = display_recipient
+        else:
+            processed_msg['display_sender'] = display_sender
+        
+        processed_messages.append(processed_msg)
+    
+    template = Template('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - BSM Inbox</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .messages-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .message-item {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+    
+    .message-sender {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+    
+    .message-recipient {
+        color: var(--light-text);
+        font-size: 0.9em;
+    }
+    
+    .message-timestamp {
+        color: var(--light-text);
+        font-size: 0.8em;
+    }
+    
+    .message-content {
+        color: var(--text-color);
+        margin-bottom: 10px;
+        line-height: 1.4;
+    }
+    
+    .message-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8em;
+        color: var(--light-text);
+    }
+    
+    .message-id {
+        font-family: monospace;
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.7em;
+        font-weight: bold;
+    }
+    
+    .status-sent { background-color: #f39c12; color: white; }
+    .status-delivered { background-color: #27ae60; color: white; }
+    .status-received { background-color: #3498db; color: white; }
+    .status-failed { background-color: #e74c3c; color: white; }
+    
+    .validation-valid { color: #27ae60; }
+    .validation-failed { color: #e74c3c; }
+    .validation-pending { color: #f39c12; }
+    
+    .empty-state {
+        text-align: center;
+        color: var(--light-text);
+        padding: 40px;
+        font-style: italic;
+    }
+    
+    .sent-indicator {
+        background-color: rgba(114, 137, 218, 0.2);
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .received-indicator {
+        background-color: rgba(67, 181, 129, 0.2);
+        border-left: 4px solid #43b581;
+    }
+</style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="user-header">
+                <span style="color: var(--text-color); font-weight: bold;">BSM Inbox</span>
+                <div>
+                    <a href="/bsm/send" class="nav-btn">Send Message</a>
+                    <a href="/" class="nav-btn">Back to Chat</a>
+                </div>
+            </div>
+            
+            <h1>Between Server Messages</h1>
+            
+            <div class="messages-list">
+                {% if messages %}
+                    {% for msg in messages %}
+                    <div class="message-item {% if msg.is_sent %}sent-indicator{% else %}received-indicator{% endif %}">
+                        <div class="message-header">
+                            <div>
+                                <div class="message-sender">
+                                    {% if msg.is_sent %}
+                                    To: {{ msg.display_recipient }}
+                                    {% else %}
+                                    From: {{ msg.display_sender }}
+                                    {% endif %}
+                                </div>
+                                <div class="message-recipient">
+                                    {% if not msg.is_sent %}
+                                    To: {{ msg.recipient_beam_number }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="message-timestamp">
+                                {{ msg.timestamp }}
+                            </div>
+                        </div>
+                        
+                        <div class="message-content">
+                            {{ msg.message }}
+                        </div>
+                        
+                        <div class="message-meta">
+                            <div>
+                                <span class="status-badge status-{{ msg.status }}">{{ msg.status|title }}</span>
+                                <span class="validation-{{ msg.validation_class }}">
+                                    {{ msg.validation_status|title }}
+                                </span>
+                            </div>
+                            <div class="message-id">{{ msg.message_id }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        No BSM messages found.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <script>
+            // Load saved theme
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+            });
+            
+            // Auto-refresh every 30 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 30000);
+        </script>
+    </body>
+    </html>
+    ''')
+    
+    context = Context({
+        'username': username,
+        'messages': processed_messages
+    })
+    
+    return HttpResponse(template.render(context))
 def login_view(request):
     session = get_session(request)
     if session and 'username' in session:
@@ -2884,6 +4199,11 @@ urlpatterns = [
     path('admin/users', admin_users_view, name='admin_users'),  
     path('download/<str:filename>', download_file, name='download'),
     path('profile_pic/<str:filename>', profile_pic_view, name='profile_pic'),
+    path('bsm/send', bsm_send_view, name='bsm_send'),
+    path('bsm/inbox', bsm_inbox_view, name='bsm_inbox'),
+    path('bsm/receive', bsm_receive_message, name='bsm_receive'),
+    path('bsm/validate/<str:message_id>', bsm_validate_message, name='bsm_validate'),
+    path('bsm/profile', bsm_profile_view, name='bsm_profile'),
 ]
 
 # Application
