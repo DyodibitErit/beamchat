@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - BSM Inbox</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .messages-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .message-item {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+    
+    .message-sender {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+    
+    .message-recipient {
+        color: var(--light-text);
+        font-size: 0.9em;
+    }
+    
+    .message-timestamp {
+        color: var(--light-text);
+        font-size: 0.8em;
+    }
+    
+    .message-content {
+        color: var(--text-color);
+        margin-bottom: 10px;
+        line-height: 1.4;
+    }
+    
+    .message-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8em;
+        color: var(--light-text);
+    }
+    
+    .message-id {
+        font-family: monospace;
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.7em;
+        font-weight: bold;
+    }
+    
+    .status-sent { background-color: #f39c12; color: white; }
+    .status-delivered { background-color: #27ae60; color: white; }
+    .status-received { background-color: #3498db; color: white; }
+    .status-failed { background-color: #e74c3c; color: white; }
+    
+    .validation-valid { color: #27ae60; }
+    .validation-failed { color: #e74c3c; }
+    .validation-pending { color: #f39c12; }
+    
+    .empty-state {
+        text-align: center;
+        color: var(--light-text);
+        padding: 40px;
+        font-style: italic;
+    }
+    
+    .sent-indicator {
+        background-color: rgba(114, 137, 218, 0.2);
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .received-indicator {
+        background-color: rgba(67, 181, 129, 0.2);
+        border-left: 4px solid #43b581;
+    }
+</style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="user-header">
+                <span style="color: var(--text-color); font-weight: bold;">BSM Inbox</span>
+                <div>
+                    <a href="/bsm/send" class="nav-btn">Send Message</a>
+                    <a href="/" class="nav-btn">Back to Chat</a>
+                </div>
+            </div>
+            
+            <h1>Between Server Messages</h1>
+            
+            <div class="messages-list">
+                {% if messages %}
+                    {% for msg in messages %}
+                    <div class="message-item {% if msg.is_sent %}sent-indicator{% else %}received-indicator{% endif %}">
+                        <div class="message-header">
+                            <div>
+                                <div class="message-sender">
+                                    {% if msg.is_sent %}
+                                    To: {{ msg.display_recipient }}
+                                    {% else %}
+                                    From: {{ msg.display_sender }}
+                                    {% endif %}
+                                </div>
+                                <div class="message-recipient">
+                                    {% if not msg.is_sent %}
+                                    To: {{ msg.recipient_beam_number }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="message-timestamp">
+                                {{ msg.timestamp }}
+                            </div>
+                        </div>
+                        
+                        <div class="message-content">
+                            {{ msg.message }}
+                        </div>
+                        
+                        <div class="message-meta">
+                            <div>
+                                <span class="status-badge status-{{ msg.status }}">{{ msg.status|title }}</span>
+                                <span class="validation-{{ msg.validation_class }}">
+                                    {{ msg.validation_status|title }}
+                                </span>
+                            </div>
+                            <div class="message-id">{{ msg.message_id }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        No BSM messages found.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <script>
+            // Load saved theme
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+            });
+            
+            // Auto-refresh every 30 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 30000);
+        </script>
+    </body>
+    </html>

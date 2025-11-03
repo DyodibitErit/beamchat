@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - Login</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body { 
+        font-family: Arial, sans-serif; 
+        background-color: var(--background-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+    }
+    
+    .login-container {
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        width: 100%;
+        max-width: 400px;
+        border: 1px solid var(--border-color);
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .error {
+        color: #f04747;
+        margin-bottom: 15px;
+        padding: 10px;
+        background-color: rgba(240, 71, 71, 0.1);
+        border: 1px solid rgba(240, 71, 71, 0.3);
+        border-radius: 4px;
+    }
+    
+    form {
+        margin-top: 20px;
+    }
+    
+    input { 
+        display: block; 
+        margin-bottom: 15px; 
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 1em;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    input::placeholder {
+        color: var(--light-text);
+    }
+    
+    input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+    }
+    
+    button { 
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+        width: 100%;
+        border-radius: 4px;
+    }
+    
+    button:hover {
+        background-color: #5b73c4;
+    }
+    
+    .register-link {
+        text-align: center;
+        margin-top: 20px;
+        color: var(--light-text);
+    }
+    
+    .register-link a {
+        color: var(--primary-color);
+        text-decoration: none;
+    }
+    
+    .register-link a:hover {
+        text-decoration: underline;
+    }
+</style>
+    </head>
+    <body>
+        <div class="login-container">
+            <h1>BEAM Login</h1>
+            
+            {% if form.non_field_errors %}
+            <div class="error">
+                {% for error in form.non_field_errors %}
+                    {{ error }}
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <form method="post">
+                {% csrf_token %}
+                <input type="text" name="username" placeholder="Username" required value="{{ form.username.value|default:'' }}">
+                <input type="password" name="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            
+            <div class="register-link">
+                <p>Don't have an account? <a href="/register">Register here</a></p>
+            </div>
+        </div>
+    </body>
+    </html>

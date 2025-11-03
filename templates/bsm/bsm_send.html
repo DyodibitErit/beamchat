@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - Send BSM Message</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .form-group {
+        margin-bottom: 20px;
+    }
+    
+    label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--text-color);
+        font-weight: bold;
+    }
+    
+    input, textarea {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 1em;
+        background-color: #40444b;
+        color: var(--text-color);
+    }
+    
+    textarea {
+        height: 150px;
+        resize: vertical;
+    }
+    
+    input:focus, textarea:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+    }
+    
+    .submit-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s;
+        border-radius: 4px;
+        width: 100%;
+        font-size: 1.1em;
+    }
+    
+    .submit-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    .alert {
+        padding: 12px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .alert-error {
+        background-color: rgba(240, 71, 71, 0.1);
+        border: 1px solid rgba(240, 71, 71, 0.3);
+        color: #f04747;
+    }
+    
+    .alert-success {
+        background-color: rgba(67, 181, 129, 0.1);
+        border: 1px solid rgba(67, 181, 129, 0.3);
+        color: #43b581;
+    }
+    
+    .info-box {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .info-title {
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 8px;
+    }
+    
+    .info-text {
+        color: var(--light-text);
+        font-size: 0.9em;
+        line-height: 1.4;
+    }
+    
+    .message-id {
+        font-family: monospace;
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+    
+    .server-info {
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 10px;
+        border-radius: 4px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 0.9em;
+    }
+</style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="user-header">
+                <span style="color: var(--text-color); font-weight: bold;">Send BSM Message</span>
+                <div>
+                    <a href="/bsm/inbox" class="nav-btn">Inbox</a>
+                    <a href="/" class="nav-btn">Back to Chat</a>
+                </div>
+            </div>
+            
+            <h1>Between Server Message</h1>
+            
+            <div class="info-box">
+                <div class="info-title">Current Server Information</div>
+                <div class="server-info" id="currentServerInfo">
+                    Detecting server URL...
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <div class="info-title">Beam Number Format:</div>
+                <div class="info-text">
+                    • Format: <strong>+server_url xxx-xxx-xxx</strong><br>
+                    • Example: <strong>+192.168.1.100 123-456-789</strong><br>
+                    • Example: <strong>+https://myserver.com 123-456-789</strong><br>
+                    • All messages are sent via client-side JavaScript
+                </div>
+            </div>
+            
+            {% if error %}
+            <div class="alert alert-error">
+                {{ error }}
+            </div>
+            {% endif %}
+            
+            {% if success %}
+            <div class="alert alert-success">
+                {{ success }}
+                {% if message_id %}
+                <br><br>Message ID: <span class="message-id">{{ message_id }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- JavaScript-based sending for ALL messages -->
+            <div class="form-group">
+                <label for="recipient_beam_number">Recipient Beam Number:</label>
+                <input type="text" id="recipient_beam_number" name="recipient_beam_number" 
+                       placeholder="+192.168.1.100 123-456-789 or +https://myserver.com 123-456-789" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="message_text">Message:</label>
+                <textarea id="message_text" name="message_text" placeholder="Type your message here..." required></textarea>
+            </div>
+            
+            <button type="button" id="jsSendBtn" class="submit-btn">Send Message (JavaScript)</button>
+            <div id="jsResult" style="margin-top: 15px;"></div>
+        </div>
+        
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+                
+                // Display current server information
+                const currentServerInfo = document.getElementById('currentServerInfo');
+                currentServerInfo.textContent = `Server URL: ${window.location.origin}`;
+                
+                // Setup JavaScript-based sending for ALL messages
+                const jsSendBtn = document.getElementById('jsSendBtn');
+                const jsResult = document.getElementById('jsResult');
+                const recipientInput = document.getElementById('recipient_beam_number');
+                const messageInput = document.getElementById('message_text');
+                
+                jsSendBtn.addEventListener('click', async function() {
+                    const recipient = recipientInput.value.trim();
+                    const message = messageInput.value.trim();
+                    
+                    if (!recipient || !message) {
+                        showResult('Please fill in both recipient and message fields.', 'error');
+                        return;
+                    }
+                    
+                    if (!recipient.startsWith('+')) {
+                        showResult('Beam number must start with + followed by server URL', 'error');
+                        return;
+                    }
+                    
+                    try {
+                        jsSendBtn.disabled = true;
+                        jsSendBtn.textContent = 'Sending...';
+                        
+                        // Parse the beam number to determine target server
+                        const beamNumber = recipient;
+                        let targetServer, localNumber;
+                        
+                        if (beamNumber.startsWith('+')) {
+                            // Extract server from beam number
+                            const parts = beamNumber.substring(1).split(' ', 1);
+                            if (parts.length < 1) {
+                                throw new Error('Invalid beam number format');
+                            }
+                            targetServer = parts[0];
+                            // Add protocol if missing
+                            if (!targetServer.startsWith('http://') && !targetServer.startsWith('https://')) {
+                                targetServer = 'http://' + targetServer;
+                            }
+                            localNumber = beamNumber.substring(parts[0].length + 2); // +2 for "+" and space
+                        } else {
+                            throw new Error('Invalid beam number format - must start with +');
+                        }
+                        
+                        // Prepare the message payload
+                        const payload = {
+                            sender: '{{ username }}',
+                            sender_server: window.location.origin,
+                            recipient_beam_number: beamNumber,
+                            message: message,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        console.log('Frontend sending to server:', targetServer);
+                        console.log('From server:', window.location.origin);
+                        console.log('Payload:', payload);
+                        
+                        // Send POST request directly to target server from frontend
+                        const response = await fetch(`${targetServer}/bsm/receive`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            showResult(`Message sent successfully to ${targetServer}! Message ID: ${result.message_id}`, 'success');
+                            
+                            // Clear form on success
+                            recipientInput.value = '';
+                            messageInput.value = '';
+                        } else {
+                            const errorText = await response.text();
+                            throw new Error(`Server responded with ${response.status}: ${errorText}`);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error sending message:', error);
+                        showResult(`Failed to send message: ${error.message}`, 'error');
+                    } finally {
+                        jsSendBtn.disabled = false;
+                        jsSendBtn.textContent = 'Send Message (JavaScript)';
+                    }
+                });
+                
+                function showResult(message, type) {
+                    jsResult.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+                    setTimeout(() => {
+                        jsResult.innerHTML = '';
+                    }, 10000);
+                }
+            });
+        </script>
+    </body>
+    </html>

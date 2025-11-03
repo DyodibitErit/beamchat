@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <title>BEAM - My BSM Profile</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .profile-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    
+    .profile-picture {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        object-fit: cover;
+        margin-bottom: 20px;
+        border: 3px solid var(--primary-color);
+    }
+    
+    .beam-number-display {
+        background: linear-gradient(135deg, var(--primary-color), #5b73c4);
+        padding: 30px;
+        border-radius: 12px;
+        text-align: center;
+        margin: 20px 0;
+        border: 2px solid var(--border-color);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+    
+    .beam-number-label {
+        color: var(--light-text);
+        font-size: 1.1em;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    .beam-number {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: white;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        margin: 10px 0;
+    }
+    
+    .server-info {
+        color: var(--light-text);
+        font-size: 0.9em;
+        margin-top: 10px;
+    }
+    
+    .server-url {
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-family: monospace;
+        margin: 5px 0;
+        word-break: break-all;
+    }
+    
+    .info-box {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .info-title {
+        font-weight: bold;
+        color: var(--primary-color);
+        margin-bottom: 10px;
+        font-size: 1.1em;
+    }
+    
+    .info-text {
+        color: var(--light-text);
+        line-height: 1.5;
+    }
+    
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .btn-copy {
+        background-color: #43b581;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+    
+    .btn-copy:hover {
+        background-color: #3ca374;
+    }
+    
+    .copy-success {
+        color: #43b581;
+        font-weight: bold;
+        margin-top: 10px;
+        display: none;
+    }
+    
+    @media (max-width: 600px) {
+        .container {
+            padding: 20px;
+        }
+        
+        .beam-number {
+            font-size: 2em;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+        }
+        
+        .nav-btn {
+            margin-left: 0;
+            margin-bottom: 5px;
+        }
+    }
+</style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="user-header">
+                <span style="color: var(--text-color); font-weight: bold;">My BSM Profile</span>
+                <div>
+                    <a href="/bsm/send" class="nav-btn">Send Message</a>
+                    <a href="/bsm/inbox" class="nav-btn">Inbox</a>
+                    <a href="/" class="nav-btn">Back to Chat</a>
+                </div>
+            </div>
+            
+            <h1>Between Server Messaging</h1>
+            
+            <div class="profile-section">
+                <img src="{{ profile_pic_url }}" alt="Profile Picture" class="profile-picture">
+            </div>
+            
+            {% if full_beam_number %}
+            <div class="beam-number-display">
+                <div class="beam-number-label">Your Beam Number</div>
+                <div class="beam-number" id="beamNumber">{{ full_beam_number }}</div>
+                <div class="server-info">
+                    Current Server: 
+                    <div class="server-url" id="currentServerUrl">Detecting...</div>
+                    <div style="margin-top: 10px; font-size: 0.8em;">
+                        The frontend automatically detects and uses this server URL for messaging
+                    </div>
+                </div>
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn-copy" onclick="copyBeamNumber()">Copy Beam Number</button>
+                <button class="btn-copy" onclick="copyServerUrl()">Copy Server URL</button>
+                <a href="/bsm/send" class="nav-btn">Send Test Message</a>
+            </div>
+            
+            <div class="copy-success" id="copySuccess">
+                ✓ Copied to clipboard!
+            </div>
+            {% else %}
+            <div class="beam-number-display">
+                <div class="beam-number-label">Beam Number Unavailable</div>
+                <div class="beam-number" style="color: #f04747;">Error - No beam number assigned</div>
+            </div>
+            {% endif %}
+            
+            <div class="info-box">
+                <div class="info-title">Frontend BSM System</div>
+                <div class="info-text">
+                    • <strong>Your Beam Number:</strong> <span id="displayBeamNumber">{{ full_beam_number }}</span><br>
+                    • <strong>Server Detection:</strong> Frontend automatically detects server URL<br>
+                    • <strong>Cross-Server Messaging:</strong> Frontend POSTs directly to target servers<br>
+                    • <strong>Validation:</strong> Servers validate messages via GET requests<br>
+                    • <strong>No Backend Dependency:</strong> Cross-server messages don't use your server's backend
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <div class="info-title">Message Statistics</div>
+                <div class="info-text">
+                    • Total BSM Messages: <strong>{{ user_messages|length }}</strong><br>
+                    • Messages Sent: <strong>{{ sent_count }}</strong><br>
+                    • Messages Received: <strong>{{ received_count }}</strong>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            function copyBeamNumber() {
+                const beamNumber = document.getElementById('beamNumber').textContent;
+                navigator.clipboard.writeText(beamNumber).then(function() {
+                    showCopySuccess('Beam number copied to clipboard!');
+                }).catch(function(err) {
+                    alert('Failed to copy beam number: ' + err);
+                });
+            }
+            
+            function copyServerUrl() {
+                const serverUrl = window.location.origin;
+                navigator.clipboard.writeText(serverUrl).then(function() {
+                    showCopySuccess('Server URL copied to clipboard!');
+                }).catch(function(err) {
+                    alert('Failed to copy server URL: ' + err);
+                });
+            }
+            
+            function showCopySuccess(message) {
+                const successElement = document.getElementById('copySuccess');
+                successElement.textContent = '✓ ' + message;
+                successElement.style.display = 'block';
+                setTimeout(() => {
+                    successElement.style.display = 'none';
+                }, 3000);
+            }
+            
+            // Load saved theme and display server information
+            document.addEventListener('DOMContentLoaded', function() {
+                const savedTheme = localStorage.getItem('beamTheme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    document.documentElement.style.setProperty('--primary-color', theme.primary);
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                    document.documentElement.style.setProperty('--background-color', theme.background);
+                    document.documentElement.style.setProperty('--text-color', theme.text);
+                    document.documentElement.style.setProperty('--border-color', theme.border);
+                }
+                
+                // Display current server information
+                const currentServerUrl = document.getElementById('currentServerUrl');
+                currentServerUrl.textContent = window.location.origin;
+                
+                console.log('Frontend BSM System Ready:');
+                console.log('Beam Number:', document.getElementById('beamNumber').textContent);
+                console.log('Server URL:', window.location.origin);
+                console.log('Frontend can send POST requests to any server');
+            });
+        </script>
+    </body>
+    </html>
