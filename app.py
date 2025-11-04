@@ -1217,6 +1217,49 @@ def bsm_inbox_view(request):
     })
     
     return HttpResponse(template.render(context))
+
+def bsm_discovery_view(request):
+    """View for discovering users and their beam numbers on the same server"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    
+    # Get all users with their beam numbers
+    users = read_users()
+    user_list = []
+    
+    for user, user_data in users.items():
+        if user != username:  # Exclude current user
+            beam_number = user_data.get('beam_number')
+            if beam_number:
+                full_beam_number = f"+{get_current_server_url(request)} {beam_number}"
+                user_list.append({
+                    'username': user,
+                    'beam_number': beam_number,
+                    'full_beam_number': full_beam_number,
+                    'profile_pic_url': get_profile_picture_url(user),
+                    'last_login': user_data.get('last_login', 'Never'),
+                    'created_at': user_data.get('created_at', 'Unknown')
+                })
+    
+    # Sort users by username
+    user_list.sort(key=lambda x: x['username'].lower())
+    
+    # Load template from file
+    template_path = "templates/bsm/bsm_discovery.html"
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    template = Template(template_content)
+    
+    context = Context({
+        'username': username,
+        'users': user_list,
+        'current_server': get_current_server_url(request)
+    })
+    
+    return HttpResponse(template.render(context))
 def login_view(request):
     session = get_session(request)
     if session and 'username' in session:
@@ -1687,6 +1730,7 @@ urlpatterns = [
     path('bsm/receive', bsm_receive_message, name='bsm_receive'),
     path('bsm/validate/<str:message_id>', bsm_validate_message, name='bsm_validate'),
     path('bsm/profile', bsm_profile_view, name='bsm_profile'),
+    path('bsm/discovery', bsm_discovery_view, name='bsm_discovery'),
 ]
 
 # Application

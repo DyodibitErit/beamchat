@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BEAM - User Discovery</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+    :root {
+        --primary-color: #7289da;
+        --secondary-color: #2c2f33;
+        --border-color: #40444b;
+        --text-color: #ffffff;
+        --light-text: #b9bbbe;
+        --background-color: #23272a;
+    }
+    
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body {
+        font-family: Arial, sans-serif;
+        background-color: var(--background-color);
+        padding: 20px;
+    }
+    
+    .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background-color: var(--secondary-color);
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--border-color);
+    }
+    
+    .user-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .nav-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+    
+    .nav-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    h1 {
+        text-align: center;
+        margin-bottom: 20px;
+        color: var(--primary-color);
+    }
+    
+    .server-info {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .server-url {
+        font-family: monospace;
+        background-color: rgba(0, 0, 0, 0.3);
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin: 5px 0;
+        word-break: break-all;
+    }
+    
+    .users-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .user-item {
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    
+    .user-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid var(--primary-color);
+    }
+    
+    .user-details {
+        flex: 1;
+    }
+    
+    .user-name {
+        font-weight: bold;
+        color: var(--primary-color);
+        font-size: 1.1em;
+        margin-bottom: 5px;
+    }
+    
+    .user-beam-number {
+        font-family: 'Courier New', monospace;
+        background: linear-gradient(135deg, var(--primary-color), #5b73c4);
+        padding: 8px 12px;
+        border-radius: 6px;
+        color: white;
+        font-weight: bold;
+        display: inline-block;
+        margin: 5px 0;
+    }
+    
+    .user-meta {
+        color: var(--light-text);
+        font-size: 0.8em;
+        margin-top: 5px;
+    }
+    
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 120px;
+    }
+    
+    .copy-btn {
+        background-color: #43b581;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8em;
+        white-space: nowrap;
+    }
+    
+    .copy-btn:hover {
+        background-color: #3ca374;
+    }
+    
+    .send-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.8em;
+        text-align: center;
+        white-space: nowrap;
+    }
+    
+    .send-btn:hover {
+        background-color: #5b73c4;
+    }
+    
+    .empty-state {
+        text-align: center;
+        color: var(--light-text);
+        padding: 40px;
+        font-style: italic;
+    }
+    
+    .copy-success {
+        color: #43b581;
+        font-weight: bold;
+        margin-top: 5px;
+        font-size: 0.8em;
+        display: none;
+    }
+    
+    @media (max-width: 600px) {
+        .container {
+            padding: 20px;
+        }
+        
+        .user-item {
+            flex-direction: column;
+            text-align: center;
+        }
+        
+        .action-buttons {
+            flex-direction: row;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .nav-btn {
+            margin-left: 0;
+            margin-bottom: 5px;
+        }
+    }
+</style>
+</head>
+<body>
+    <div class="container">
+        <div class="user-header">
+            <span style="color: var(--text-color); font-weight: bold;">User Discovery</span>
+            <div>
+                <a href="/bsm/send" class="nav-btn">Send Message</a>
+                <a href="/bsm/inbox" class="nav-btn">Inbox</a>
+                <a href="/bsm/profile" class="nav-btn">My Profile</a>
+                <a href="/" class="nav-btn">Back to Chat</a>
+            </div>
+        </div>
+        
+        <h1>Discover Users</h1>
+        
+        <div class="server-info">
+            <div style="font-weight: bold; color: var(--primary-color); margin-bottom: 8px;">
+                Current Server
+            </div>
+            <div class="server-url" id="currentServerUrl">{{ current_server }}</div>
+            <div style="color: var(--light-text); font-size: 0.9em; margin-top: 8px;">
+                These users are registered on the same server. You can send them BSM messages directly.
+            </div>
+        </div>
+        
+        <div class="users-list">
+            {% if users %}
+                {% for user in users %}
+                <div class="user-item">
+                    <img src="{{ user.profile_pic_url }}" alt="{{ user.username }}" class="user-avatar">
+                    
+                    <div class="user-details">
+                        <div class="user-name">{{ user.username }}</div>
+                        <div class="user-beam-number" id="beamNumber-{{ user.username }}">
+                            {{ user.full_beam_number }}
+                        </div>
+                        <div class="user-meta">
+                            Last login: {{ user.last_login }}<br>
+                            Member since: {{ user.created_at }}
+                        </div>
+                        <div class="copy-success" id="copySuccess-{{ user.username }}">
+                            ✓ Copied!
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="copy-btn" onclick="copyBeamNumber('{{ user.username }}')">
+                            Copy Beam Number
+                        </button>
+                        <a href="/bsm/send" class="send-btn" onclick="setRecipient('{{ user.full_beam_number }}')">
+                            Send Message
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    No other users found on this server.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        function copyBeamNumber(username) {
+            const beamNumber = document.getElementById(`beamNumber-${username}`).textContent;
+            navigator.clipboard.writeText(beamNumber).then(function() {
+                const successElement = document.getElementById(`copySuccess-${username}`);
+                successElement.style.display = 'block';
+                setTimeout(() => {
+                    successElement.style.display = 'none';
+                }, 2000);
+            }).catch(function(err) {
+                alert('Failed to copy beam number: ' + err);
+            });
+        }
+        
+        function setRecipient(beamNumber) {
+            // Store the beam number in sessionStorage to pre-fill the send form
+            sessionStorage.setItem('prefilledRecipient', beamNumber);
+        }
+        
+        // Load saved theme and display server information
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('beamTheme');
+            if (savedTheme) {
+                const theme = JSON.parse(savedTheme);
+                document.documentElement.style.setProperty('--primary-color', theme.primary);
+                document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                document.documentElement.style.setProperty('--background-color', theme.background);
+                document.documentElement.style.setProperty('--text-color', theme.text);
+                document.documentElement.style.setProperty('--border-color', theme.border);
+            }
+            
+            // Display current server information
+            const currentServerUrl = document.getElementById('currentServerUrl');
+            currentServerUrl.textContent = window.location.origin;
+        });
+    </script>
+</body>
+</html>
