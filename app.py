@@ -195,6 +195,8 @@ USE_LOCALTUNNEL = False  # Set to True to enable localtunnel
 LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
 BSM_FILE = 'bsm.json'
 BSM_VALIDATION_TIMEOUT = 10  # seconds
+A2A_FILE = 'bsm.a2a'
+BSM_ENABLED = False
 
 # Encryption setup
 def get_encryption_key():
@@ -263,6 +265,139 @@ class RegisterForm(forms.Form):
 
 class ProfilePictureForm(forms.Form):
     profile_picture = forms.ImageField(required=False)
+
+def check_bsm_agreement():
+    """Check if BSM A2A agreement has been accepted"""
+    global BSM_ENABLED
+    try:
+        if os.path.exists(A2A_FILE):
+            with open(A2A_FILE, 'r', encoding="UTF-8") as f:
+                content = f.read().strip()
+                BSM_ENABLED = content == '1'
+        return BSM_ENABLED
+    except:
+        return False
+def get_bsm_agreement_content():
+    """Return the full BSM A2A agreement content"""
+    return """BSM A2A (AGREE TO ALL) AGREEMENT
+
+BETWEEN SERVER MESSAGING (BSM) SERVICE TERMS AND CONDITIONS
+
+Last Updated: {date}
+
+1. ACCEPTANCE OF TERMS
+By setting the A2A variable to 1 in this agreement file, you hereby agree to all terms and conditions contained in this BSM A2A (Agree To All) Agreement. This constitutes a legally binding agreement between you (the "User") and the BEAM Chat Service.
+
+2. SERVICE DESCRIPTION
+The BSM (Between Server Messaging) service enables cross-server communication between BEAM Chat instances. This includes:
+- Sending messages to users on other BEAM servers
+- Receiving messages from users on other BEAM servers
+- Server-to-server validation of message delivery
+- User discovery across the BEAM network
+
+3. USER RESPONSIBILITIES
+3.1 You agree to use BSM services only for lawful purposes and in accordance with this agreement.
+3.2 You are responsible for all content transmitted through your account via BSM.
+3.3 You agree not to use BSM for:
+   - Spamming or unsolicited bulk messaging
+   - Harassment, threats, or abusive behavior
+   - Distribution of malicious software
+   - Transmission of illegal content
+   - Impersonation of other users or entities
+
+4. PRIVACY AND DATA HANDLING
+4.1 Message Content: BSM messages are encrypted during transmission but may be stored in plaintext on receiving servers.
+4.2 Metadata: The following metadata may be transmitted with BSM messages:
+   - Sender username and server
+   - Recipient beam number
+   - Timestamp
+   - Message validation status
+4.3 Cross-Server Data: By using BSM, you acknowledge that your messages and metadata may be stored on servers outside your control.
+
+5. SERVER OPERATOR OBLIGATIONS
+5.1 As a server operator enabling BSM, you agree to:
+   - Maintain reasonable security measures
+   - Respect the privacy of users
+   - Process validation requests in good faith
+   - Not intentionally interfere with message delivery
+
+6. INTELLECTUAL PROPERTY
+6.1 You retain rights to the content you create and transmit via BSM.
+6.2 The BSM protocol and infrastructure remain the property of the BEAM Chat project.
+
+7. DISCLAIMER OF WARRANTIES
+THE BSM SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO:
+- Reliability of message delivery
+- Uptime or availability of the service
+- Security of transmitted data
+- Accuracy of message validation
+
+8. LIMITATION OF LIABILITY
+TO THE FULLEST EXTENT PERMITTED BY LAW, THE BEAM CHAT PROJECT AND SERVER OPERATORS SHALL NOT BE LIABLE FOR:
+- Lost, delayed, or undelivered messages
+- Unauthorized access to message content
+- Damages resulting from service interruption
+- Consequences of cross-server communication
+
+9. MESSAGE RETENTION
+9.1 BSM messages may be stored indefinitely on receiving servers.
+9.2 Server operators may implement their own retention policies.
+9.3 Users should not rely on BSM for permanent message storage.
+
+10. SERVICE MODIFICATIONS
+10.1 The BSM protocol may be updated without prior notice.
+10.2 Server operators may disable BSM functionality at their discretion.
+10.3 Compatibility between different BSM versions is not guaranteed.
+
+11. TERMINATION
+11.1 Server operators may terminate BSM access for users violating this agreement.
+11.2 The BSM service may be discontinued entirely with reasonable notice.
+
+12. CROSS-JURISDICTIONAL COMPLIANCE
+12.1 You acknowledge that BSM messages may cross international boundaries.
+12.2 You are responsible for compliance with local laws regarding electronic communications.
+
+13. INDEMNIFICATION
+You agree to indemnify and hold harmless the BEAM Chat project, server operators, and contributors from any claims, damages, or losses resulting from your use of BSM services.
+
+14. GOVERNING LAW
+This agreement shall be governed by the laws of the jurisdiction where the BEAM server is operated, or if not specified, by international internet communication standards.
+
+15. ENTIRE AGREEMENT
+This BSM A2A constitutes the entire agreement between you and the BEAM Chat service regarding BSM functionality and supersedes all prior communications.
+
+16. ACCEPTANCE
+By setting A2A=1, you acknowledge that:
+- You have read and understood this agreement
+- You agree to be bound by all terms and conditions
+- You are authorized to accept these terms on behalf of yourself and your organization
+- This action constitutes your electronic signature
+
+ACCEPTANCE: A2A=1
+
+DECLINE: A2A=0
+
+Your current status: {status}
+
+To accept these terms and enable BSM functionality:
+1. Create a file named 'bsm.a2a' in the server directory
+2. Write '1' in the file and save it
+3. Restart the server
+
+To decline, set A2A to 0 or delete the file.
+""".format(
+        date=datetime.now().strftime('%Y-%m-%d'),
+        status="ACCEPTED" if check_bsm_agreement() else "NOT ACCEPTED"
+    )
+
+def create_bsm_agreement_file():
+    agreement_content = get_bsm_agreement_content()
+    
+    with open('bsm_agreement.txt', 'w', encoding='utf-8') as f:
+        f.write(agreement_content)
+    
+    print("BSM A2A agreement file created: bsm_agreement.txt")
+
 
 # User management functions
 def hash_password(password, salt=None):
@@ -1105,6 +1240,10 @@ def bsm_validate_message(request, message_id):
 
 def bsm_profile_view(request):
     """View for displaying user's BSM profile and number"""
+    # Check if BSM is enabled
+    if not check_bsm_agreement():
+        return HttpResponse('BSM functionality is disabled. Administrator must accept BSM A2A agreement first by creating bsm.a2a file with content "1".', status=403)
+    
     session = get_session(request)
     if not session or 'username' not in session:
         return HttpResponseRedirect('/login')
@@ -1119,7 +1258,7 @@ def bsm_profile_view(request):
     sent_count = len([msg for msg in user_messages if msg['sender'] == username])
     received_count = len([msg for msg in user_messages if msg['sender'] != username])
     
-        # Load template from file
+    # Load template from file
     template_path = "templates/bsm/bsm_profile.html"
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
@@ -1138,6 +1277,10 @@ def bsm_profile_view(request):
     return HttpResponse(template.render(context))
 def bsm_send_view(request):
     """View for sending BSM messages - ALL messages via frontend JavaScript"""
+    # Check if BSM is enabled
+    if not check_bsm_agreement():
+        return HttpResponse('BSM functionality is disabled. Administrator must accept BSM A2A agreement first by creating bsm.a2a file with content "1".', status=403)
+    
     session = get_session(request)
     if not session or 'username' not in session:
         return HttpResponseRedirect('/login')
@@ -1152,7 +1295,7 @@ def bsm_send_view(request):
         # Traditional form submission is no longer used
         error = "All BSM messages must be sent using the client-side JavaScript button"
     
-        # Load template from file
+    # Load template from file
     template_path = "templates/bsm/bsm_send.html"
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
@@ -1168,6 +1311,10 @@ def bsm_send_view(request):
     return HttpResponse(template.render(context))
 def bsm_inbox_view(request):
     """View for displaying BSM messages"""
+    # Check if BSM is enabled
+    if not check_bsm_agreement():
+        return HttpResponse('BSM functionality is disabled. Administrator must accept BSM A2A agreement first by creating bsm.a2a file with content "1".', status=403)
+    
     session = get_session(request)
     if not session or 'username' not in session:
         return HttpResponseRedirect('/login')
@@ -1205,7 +1352,7 @@ def bsm_inbox_view(request):
         
         processed_messages.append(processed_msg)
     
-        # Load template from file
+    # Load template from file
     template_path = "templates/bsm/bsm_inbox.html"
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
@@ -1220,6 +1367,10 @@ def bsm_inbox_view(request):
 
 def bsm_discovery_view(request):
     """View for discovering users and their beam numbers on the same server"""
+    # Check if BSM is enabled
+    if not check_bsm_agreement():
+        return HttpResponse('BSM functionality is disabled. Administrator must accept BSM A2A agreement first by creating bsm.a2a file with content "1".', status=403)
+    
     session = get_session(request)
     if not session or 'username' not in session:
         return HttpResponseRedirect('/login')
@@ -1739,6 +1890,8 @@ application = get_wsgi_application()
 if __name__ == '__main__':
     import sys
     import argparse
+    create_bsm_agreement_file()
+    check_bsm_agreement()
     
     # Start localtunnel if enabled
     if USE_LOCALTUNNEL:

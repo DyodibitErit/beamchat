@@ -4,6 +4,8 @@ bulletin_board.txt
 users.json
 encryption.key
 bsm.json
+bsm_agreement.txt
+bsm.a2a
 
 # SSL Sertificates
 cert.pem
