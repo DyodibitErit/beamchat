@@ -76,7 +76,7 @@
         font-weight: bold;
     }
     
-    input, textarea {
+    input, textarea, select {
         width: 100%;
         padding: 12px;
         border: 1px solid var(--border-color);
@@ -92,7 +92,7 @@
         resize: vertical;
     }
     
-    input:focus, textarea:focus {
+    input:focus, textarea:focus, select:focus {
         outline: none;
         border-color: var(--primary-color);
         box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
@@ -109,10 +109,35 @@
         border-radius: 4px;
         width: 100%;
         font-size: 1.1em;
+        margin-bottom: 10px;
     }
     
     .submit-btn:hover {
         background-color: #5b73c4;
+    }
+    
+    .submit-btn.http {
+        background-color: #3498db;
+    }
+    
+    .submit-btn.http:hover {
+        background-color: #2980b9;
+    }
+    
+    .submit-btn.https {
+        background-color: #27ae60;
+    }
+    
+    .submit-btn.https:hover {
+        background-color: #219a52;
+    }
+    
+    .submit-btn.both {
+        background-color: #9b59b6;
+    }
+    
+    .submit-btn.both:hover {
+        background-color: #8e44ad;
     }
     
     .alert {
@@ -169,6 +194,28 @@
         font-family: monospace;
         font-size: 0.9em;
     }
+    
+    .protocol-options {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    
+    .protocol-btn {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background-color: #40444b;
+        color: var(--text-color);
+        cursor: pointer;
+        text-align: center;
+    }
+    
+    .protocol-btn.active {
+        background-color: var(--primary-color);
+        color: white;
+    }
 </style>
     </head>
     <body>
@@ -195,8 +242,8 @@
                 <div class="info-text">
                     • Format: <strong>+server_url xxx-xxx-xxx</strong><br>
                     • Example: <strong>+192.168.1.100 123-456-789</strong><br>
-                    • Example: <strong>+https://myserver.com 123-456-789</strong><br>
-                    • All messages are sent via client-side JavaScript
+                    • Example: <strong>+myserver.com 123-456-789</strong><br>
+                    • Protocol will be automatically added based on selection
                 </div>
             </div>
             
@@ -219,7 +266,7 @@
             <div class="form-group">
                 <label for="recipient_beam_number">Recipient Beam Number:</label>
                 <input type="text" id="recipient_beam_number" name="recipient_beam_number" 
-                       placeholder="+192.168.1.100 123-456-789 or +https://myserver.com 123-456-789" required>
+                       placeholder="+192.168.1.100 123-456-789 or +myserver.com 123-456-789" required>
             </div>
             
             <div class="form-group">
@@ -227,7 +274,16 @@
                 <textarea id="message_text" name="message_text" placeholder="Type your message here..." required></textarea>
             </div>
             
-            <button type="button" id="jsSendBtn" class="submit-btn">Send Message (JavaScript)</button>
+            <div class="form-group">
+                <label>Send Protocol:</label>
+                <div class="protocol-options">
+                    <div class="protocol-btn active" data-protocol="http">HTTP Only</div>
+                    <div class="protocol-btn" data-protocol="https">HTTPS Only</div>
+                    <div class="protocol-btn" data-protocol="both">HTTP & HTTPS</div>
+                </div>
+            </div>
+            
+            <button type="button" id="jsSendBtn" class="submit-btn http">Send Message via HTTP</button>
             <div id="jsResult" style="margin-top: 15px;"></div>
         </div>
         
@@ -243,17 +299,50 @@
                     document.documentElement.style.setProperty('--border-color', theme.border);
                 }
                 
-                // Display current server information
+                // Display current server information (without protocol)
                 const currentServerInfo = document.getElementById('currentServerInfo');
-                currentServerInfo.textContent = `Server URL: ${window.location.origin}`;
+                const serverUrl = new URL(window.location.origin);
+                currentServerInfo.textContent = `Server: ${serverUrl.hostname} (${serverUrl.port || '80'})`;
+                
+                // Protocol selection
+                const protocolBtns = document.querySelectorAll('.protocol-btn');
+                const sendBtn = document.getElementById('jsSendBtn');
+                let selectedProtocol = 'http';
+                
+                protocolBtns.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        protocolBtns.forEach(b => b.classList.remove('active'));
+                        this.classList.add('active');
+                        selectedProtocol = this.getAttribute('data-protocol');
+                        
+                        // Update send button text and style
+                        updateSendButton();
+                    });
+                });
+                
+                function updateSendButton() {
+                    switch(selectedProtocol) {
+                        case 'http':
+                            sendBtn.textContent = 'Send Message via HTTP';
+                            sendBtn.className = 'submit-btn http';
+                            break;
+                        case 'https':
+                            sendBtn.textContent = 'Send Message via HTTPS';
+                            sendBtn.className = 'submit-btn https';
+                            break;
+                        case 'both':
+                            sendBtn.textContent = 'Send Message via HTTP & HTTPS';
+                            sendBtn.className = 'submit-btn both';
+                            break;
+                    }
+                }
                 
                 // Setup JavaScript-based sending for ALL messages
-                const jsSendBtn = document.getElementById('jsSendBtn');
                 const jsResult = document.getElementById('jsResult');
                 const recipientInput = document.getElementById('recipient_beam_number');
                 const messageInput = document.getElementById('message_text');
                 
-                jsSendBtn.addEventListener('click', async function() {
+                sendBtn.addEventListener('click', async function() {
                     const recipient = recipientInput.value.trim();
                     const message = messageInput.value.trim();
                     
@@ -268,8 +357,8 @@
                     }
                     
                     try {
-                        jsSendBtn.disabled = true;
-                        jsSendBtn.textContent = 'Sending...';
+                        sendBtn.disabled = true;
+                        sendBtn.textContent = 'Sending...';
                         
                         // Parse the beam number to determine target server
                         const beamNumber = recipient;
@@ -282,14 +371,15 @@
                                 throw new Error('Invalid beam number format');
                             }
                             targetServer = parts[0];
-                            // Add protocol if missing
-                            if (!targetServer.startsWith('http://') && !targetServer.startsWith('https://')) {
-                                targetServer = 'http://' + targetServer;
-                            }
                             localNumber = beamNumber.substring(parts[0].length + 2); // +2 for "+" and space
                         } else {
                             throw new Error('Invalid beam number format - must start with +');
                         }
+                        
+                        console.log('Sending with protocol:', selectedProtocol);
+                        console.log('Target server:', targetServer);
+                        console.log('Beam number:', localNumber);
+                        console.log('Full beam number:', beamNumber);
                         
                         // Prepare the message payload
                         const payload = {
@@ -300,37 +390,68 @@
                             timestamp: new Date().toISOString()
                         };
                         
-                        console.log('Frontend sending to server:', targetServer);
-                        console.log('From server:', window.location.origin);
-                        console.log('Payload:', payload);
+                        // Determine target servers based on protocol selection
+                        const targetServers = [];
                         
-                        // Send POST request directly to target server from frontend
-                        const response = await fetch(`${targetServer}/bsm/receive`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify(payload)
-                        });
+                        if (selectedProtocol === 'http' || selectedProtocol === 'both') {
+                            targetServers.push(`http://${targetServer}`);
+                        }
+                        if (selectedProtocol === 'https' || selectedProtocol === 'both') {
+                            targetServers.push(`https://${targetServer}`);
+                        }
                         
-                        if (response.ok) {
-                            const result = await response.json();
-                            showResult(`Message sent successfully to ${targetServer}! Message ID: ${result.message_id}`, 'success');
+                        let successCount = 0;
+                        let errorMessages = [];
+                        
+                        // Send to all target servers
+                        for (const targetServerUrl of targetServers) {
+                            try {
+                                console.log('Sending to:', targetServerUrl);
+                                
+                                const response = await fetch(`${targetServerUrl}/bsm/receive`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify(payload)
+                                });
+                                
+                                if (response.ok) {
+                                    const result = await response.json();
+                                    successCount++;
+                                    console.log(`Success to ${targetServerUrl}:`, result);
+                                } else {
+                                    const errorText = await response.text();
+                                    errorMessages.push(`${targetServerUrl}: ${response.status} - ${errorText}`);
+                                    console.error(`Error from ${targetServerUrl}:`, errorText);
+                                }
+                            } catch (error) {
+                                errorMessages.push(`${targetServerUrl}: ${error.message}`);
+                                console.error(`Network error to ${targetServerUrl}:`, error);
+                            }
+                        }
+                        
+                        // Show results
+                        if (successCount > 0) {
+                            let resultMessage = `Message sent successfully to ${successCount} server(s)!`;
+                            if (errorMessages.length > 0) {
+                                resultMessage += `<br>Errors: ${errorMessages.join('; ')}`;
+                            }
+                            showResult(resultMessage, 'success');
                             
                             // Clear form on success
                             recipientInput.value = '';
                             messageInput.value = '';
                         } else {
-                            const errorText = await response.text();
-                            throw new Error(`Server responded with ${response.status}: ${errorText}`);
+                            showResult(`Failed to send message to any server. Errors: ${errorMessages.join('; ')}`, 'error');
                         }
                         
                     } catch (error) {
                         console.error('Error sending message:', error);
                         showResult(`Failed to send message: ${error.message}`, 'error');
                     } finally {
-                        jsSendBtn.disabled = false;
-                        jsSendBtn.textContent = 'Send Message (JavaScript)';
+                        sendBtn.disabled = false;
+                        updateSendButton();
                     }
                 });
                 

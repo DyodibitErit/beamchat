@@ -227,14 +227,14 @@
         <h1>Discover Users</h1>
         
         <div class="server-info">
-            <div style="font-weight: bold; color: var(--primary-color); margin-bottom: 8px;">
-                Current Server
-            </div>
-            <div class="server-url" id="currentServerUrl">{{ current_server }}</div>
-            <div style="color: var(--light-text); font-size: 0.9em; margin-top: 8px;">
-                These users are registered on the same server. You can send them BSM messages directly.
-            </div>
-        </div>
+    <div style="font-weight: bold; color: var(--primary-color); margin-bottom: 8px;">
+        Current Server
+    </div>
+    <div class="server-url" id="currentServerUrl">{{ current_server }}</div>
+    <div style="color: var(--light-text); font-size: 0.9em; margin-top: 8px;">
+        These users are registered on the same server. You can send them BSM messages directly.
+    </div>
+</div>
         
         <div class="users-list">
             {% if users %}
@@ -306,8 +306,9 @@
             }
             
             // Display current server information
-            const currentServerUrl = document.getElementById('currentServerUrl');
-            currentServerUrl.textContent = window.location.origin;
+const currentServerUrl = document.getElementById('currentServerUrl');
+const serverUrl = new URL(window.location.origin);
+currentServerUrl.textContent = `${serverUrl.hostname}${serverUrl.port ? ':' + serverUrl.port : ''}`;
         });
     </script>
 </body>

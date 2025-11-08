@@ -214,13 +214,13 @@
             <div class="beam-number-display">
                 <div class="beam-number-label">Your Beam Number</div>
                 <div class="beam-number" id="beamNumber">{{ full_beam_number }}</div>
-                <div class="server-info">
-                    Current Server: 
-                    <div class="server-url" id="currentServerUrl">Detecting...</div>
-                    <div style="margin-top: 10px; font-size: 0.8em;">
-                        The frontend automatically detects and uses this server URL for messaging
-                    </div>
-                </div>
+ <div class="server-info">
+    Current Server: 
+    <div class="server-url" id="currentServerUrl">Detecting...</div>
+    <div style="margin-top: 10px; font-size: 0.8em;">
+        Protocol will be automatically detected when sending messages
+    </div>
+</div>
             </div>
             
             <div class="action-buttons">
@@ -300,9 +300,9 @@
                     document.documentElement.style.setProperty('--border-color', theme.border);
                 }
                 
-                // Display current server information
-                const currentServerUrl = document.getElementById('currentServerUrl');
-                currentServerUrl.textContent = window.location.origin;
+const currentServerUrl = document.getElementById('currentServerUrl');
+const serverUrl = new URL(window.location.origin);
+currentServerUrl.textContent = `${serverUrl.hostname}${serverUrl.port ? ':' + serverUrl.port : ''}`;
                 
                 console.log('Frontend BSM System Ready:');
                 console.log('Beam Number:', document.getElementById('beamNumber').textContent);

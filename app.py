@@ -1250,7 +1250,12 @@ def bsm_profile_view(request):
     
     username = session['username']
     beam_number = get_user_beam_number(username)
-    full_beam_number = f"+{get_current_server_url(request)} {beam_number}" if beam_number else None
+    
+    # Remove protocol from server URL for display
+    server_url = get_current_server_url(request)
+    server_without_protocol = server_url.replace('http://', '').replace('https://', '')
+    full_beam_number = f"+{server_without_protocol} {beam_number}" if beam_number else None
+    
     profile_pic_url = get_profile_picture_url(username)
     
     # Get message statistics
@@ -1276,7 +1281,7 @@ def bsm_profile_view(request):
     
     return HttpResponse(template.render(context))
 def bsm_send_view(request):
-    """View for sending BSM messages - ALL messages via frontend JavaScript"""
+    """View for sending BSM messages with protocol options"""
     # Check if BSM is enabled
     if not check_bsm_agreement():
         return HttpResponse('BSM functionality is disabled. Administrator must accept BSM A2A agreement first by creating bsm.a2a file with content "1".', status=403)
@@ -1385,7 +1390,10 @@ def bsm_discovery_view(request):
         if user != username:  # Exclude current user
             beam_number = user_data.get('beam_number')
             if beam_number:
-                full_beam_number = f"+{get_current_server_url(request)} {beam_number}"
+                # Remove protocol from server URL for display
+                server_url = get_current_server_url(request)
+                server_without_protocol = server_url.replace('http://', '').replace('https://', '')
+                full_beam_number = f"+{server_without_protocol} {beam_number}"
                 user_list.append({
                     'username': user,
                     'beam_number': beam_number,
@@ -1398,6 +1406,9 @@ def bsm_discovery_view(request):
     # Sort users by username
     user_list.sort(key=lambda x: x['username'].lower())
     
+    # Get current server without protocol for display
+    current_server = get_current_server_url(request).replace('http://', '').replace('https://', '')
+    
     # Load template from file
     template_path = "templates/bsm/bsm_discovery.html"
     with open(template_path, 'r', encoding='utf-8') as f:
@@ -1407,7 +1418,7 @@ def bsm_discovery_view(request):
     context = Context({
         'username': username,
         'users': user_list,
-        'current_server': get_current_server_url(request)
+        'current_server': current_server
     })
     
     return HttpResponse(template.render(context))
