@@ -22,14 +22,15 @@
     body {
         font-family: Arial, sans-serif;
         background-color: var(--background-color);
-        padding: 20px;
+        padding: 15px;
+        min-height: 100vh;
     }
     
     .container {
         max-width: 800px;
         margin: 0 auto;
         background-color: var(--secondary-color);
-        padding: 30px;
+        padding: 20px;
         border-radius: 8px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         border: 1px solid var(--border-color);
@@ -42,18 +43,29 @@
         margin-bottom: 20px;
         padding-bottom: 10px;
         border-bottom: 1px solid var(--border-color);
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .nav-buttons {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
     
     .nav-btn {
         background-color: var(--primary-color);
         color: white;
         border: none;
-        padding: 8px 15px;
+        padding: 8px 12px;
         border-radius: 4px;
         cursor: pointer;
         text-decoration: none;
         font-size: 0.9em;
-        margin-left: 10px;
+        text-align: center;
+        flex: 1;
+        min-width: 100px;
     }
     
     .nav-btn:hover {
@@ -64,6 +76,7 @@
         text-align: center;
         margin-bottom: 20px;
         color: var(--primary-color);
+        font-size: 1.5em;
     }
     
     .server-info {
@@ -77,10 +90,11 @@
     .server-url {
         font-family: monospace;
         background-color: rgba(0, 0, 0, 0.3);
-        padding: 8px 12px;
+        padding: 8px 10px;
         border-radius: 4px;
         margin: 5px 0;
         word-break: break-all;
+        font-size: 0.9em;
     }
     
     .users-list {
@@ -91,62 +105,68 @@
     
     .user-item {
         background-color: rgba(255, 255, 255, 0.05);
-        padding: 20px;
+        padding: 15px;
         border-radius: 8px;
         border: 1px solid var(--border-color);
         display: flex;
         align-items: center;
-        gap: 15px;
+        gap: 12px;
     }
     
     .user-avatar {
-        width: 60px;
-        height: 60px;
+        width: 50px;
+        height: 50px;
         border-radius: 50%;
         object-fit: cover;
         border: 2px solid var(--primary-color);
+        flex-shrink: 0;
     }
     
     .user-details {
         flex: 1;
+        min-width: 0;
     }
     
     .user-name {
         font-weight: bold;
         color: var(--primary-color);
-        font-size: 1.1em;
+        font-size: 1em;
         margin-bottom: 5px;
+        word-break: break-word;
     }
     
     .user-beam-number {
         font-family: 'Courier New', monospace;
         background: linear-gradient(135deg, var(--primary-color), #5b73c4);
-        padding: 8px 12px;
+        padding: 6px 10px;
         border-radius: 6px;
         color: white;
         font-weight: bold;
         display: inline-block;
-        margin: 5px 0;
+        margin: 3px 0;
+        font-size: 0.9em;
+        word-break: break-all;
     }
     
     .user-meta {
         color: var(--light-text);
-        font-size: 0.8em;
-        margin-top: 5px;
+        font-size: 0.75em;
+        margin-top: 3px;
     }
     
     .action-buttons {
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        min-width: 120px;
+        gap: 6px;
+        min-width: 110px;
+        flex-shrink: 0;
     }
     
     .copy-btn {
         background-color: #43b581;
         color: white;
         border: none;
-        padding: 6px 12px;
+        padding: 6px 10px;
         border-radius: 4px;
         cursor: pointer;
         font-size: 0.8em;
@@ -161,7 +181,7 @@
         background-color: var(--primary-color);
         color: white;
         border: none;
-        padding: 6px 12px;
+        padding: 6px 10px;
         border-radius: 4px;
         cursor: pointer;
         text-decoration: none;
@@ -177,25 +197,56 @@
     .empty-state {
         text-align: center;
         color: var(--light-text);
-        padding: 40px;
+        padding: 40px 20px;
         font-style: italic;
     }
     
     .copy-success {
         color: #43b581;
         font-weight: bold;
-        margin-top: 5px;
-        font-size: 0.8em;
+        margin-top: 3px;
+        font-size: 0.75em;
         display: none;
     }
-    
+
     @media (max-width: 600px) {
+        body {
+            padding: 10px;
+        }
+        
         .container {
-            padding: 20px;
+            padding: 15px;
+        }
+        
+        .user-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .nav-buttons {
+            justify-content: stretch;
+            margin-top: 10px;
+        }
+        
+        .nav-btn {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 8px;
+            font-size: 0.85em;
+        }
+        
+        h1 {
+            font-size: 1.3em;
         }
         
         .user-item {
             flex-direction: column;
+            text-align: center;
+            padding: 15px;
+        }
+        
+        .user-details {
+            width: 100%;
             text-align: center;
         }
         
@@ -203,11 +254,53 @@
             flex-direction: row;
             justify-content: center;
             width: 100%;
+            min-width: auto;
+            margin-top: 10px;
+        }
+        
+        .copy-btn, .send-btn {
+            flex: 1;
+            padding: 8px;
+        }
+        
+        .user-avatar {
+            width: 60px;
+            height: 60px;
+        }
+        
+        .server-info {
+            padding: 12px;
+        }
+        
+        .server-url {
+            font-size: 0.85em;
+            padding: 6px 8px;
+        }
+    }
+
+    @media (min-width: 601px) and (max-width: 768px) {
+        .user-item {
+            padding: 15px;
+        }
+        
+        .action-buttons {
+            min-width: 100px;
         }
         
         .nav-btn {
-            margin-left: 0;
-            margin-bottom: 5px;
+            min-width: 90px;
+            font-size: 0.85em;
+            padding: 8px 10px;
+        }
+    }
+
+    @media (max-width: 380px) {
+        .nav-buttons {
+            flex-direction: column;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
         }
     }
 </style>
@@ -216,7 +309,7 @@
     <div class="container">
         <div class="user-header">
             <span style="color: var(--text-color); font-weight: bold;">User Discovery</span>
-            <div>
+            <div class="nav-buttons">
                 <a href="/bsm/send" class="nav-btn">Send Message</a>
                 <a href="/bsm/inbox" class="nav-btn">Inbox</a>
                 <a href="/bsm/profile" class="nav-btn">My Profile</a>
@@ -227,14 +320,14 @@
         <h1>Discover Users</h1>
         
         <div class="server-info">
-    <div style="font-weight: bold; color: var(--primary-color); margin-bottom: 8px;">
-        Current Server
-    </div>
-    <div class="server-url" id="currentServerUrl">{{ current_server }}</div>
-    <div style="color: var(--light-text); font-size: 0.9em; margin-top: 8px;">
-        These users are registered on the same server. You can send them BSM messages directly.
-    </div>
-</div>
+            <div style="font-weight: bold; color: var(--primary-color); margin-bottom: 8px;">
+                Current Server
+            </div>
+            <div class="server-url" id="currentServerUrl">{{ current_server }}</div>
+            <div style="color: var(--light-text); font-size: 0.85em; margin-top: 8px;">
+                These users are registered on the same server. You can send them BSM messages directly.
+            </div>
+        </div>
         
         <div class="users-list">
             {% if users %}
@@ -306,9 +399,9 @@
             }
             
             // Display current server information
-const currentServerUrl = document.getElementById('currentServerUrl');
-const serverUrl = new URL(window.location.origin);
-currentServerUrl.textContent = `${serverUrl.hostname}${serverUrl.port ? ':' + serverUrl.port : ''}`;
+            const currentServerUrl = document.getElementById('currentServerUrl');
+            const serverUrl = new URL(window.location.origin);
+            currentServerUrl.textContent = `${serverUrl.hostname}${serverUrl.port ? ':' + serverUrl.port : ''}`;
         });
     </script>
 </body>

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-    <html>
-    <head>
-        <title>BEAM - BSM Inbox</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
+<html>
+<head>
+    <title>BEAM - BSM Inbox</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
     :root {
         --primary-color: #7289da;
         --secondary-color: #2c2f33;
@@ -22,14 +22,15 @@
     body {
         font-family: Arial, sans-serif;
         background-color: var(--background-color);
-        padding: 20px;
+        padding: 15px;
+        min-height: 100vh;
     }
     
     .container {
         max-width: 800px;
         margin: 0 auto;
         background-color: var(--secondary-color);
-        padding: 30px;
+        padding: 20px;
         border-radius: 8px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         border: 1px solid var(--border-color);
@@ -42,18 +43,28 @@
         margin-bottom: 20px;
         padding-bottom: 10px;
         border-bottom: 1px solid var(--border-color);
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .nav-buttons {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
     }
     
     .nav-btn {
         background-color: var(--primary-color);
         color: white;
         border: none;
-        padding: 8px 15px;
+        padding: 8px 12px;
         border-radius: 4px;
         cursor: pointer;
         text-decoration: none;
         font-size: 0.9em;
-        margin-left: 10px;
+        text-align: center;
+        flex: 1;
+        min-width: 100px;
     }
     
     .nav-btn:hover {
@@ -64,17 +75,18 @@
         text-align: center;
         margin-bottom: 20px;
         color: var(--primary-color);
+        font-size: 1.5em;
     }
     
     .messages-list {
         display: flex;
         flex-direction: column;
-        gap: 15px;
+        gap: 12px;
     }
     
     .message-item {
         background-color: rgba(255, 255, 255, 0.05);
-        padding: 20px;
+        padding: 15px;
         border-radius: 8px;
         border: 1px solid var(--border-color);
     }
@@ -83,36 +95,44 @@
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+        gap: 8px;
     }
     
     .message-sender {
         font-weight: bold;
         color: var(--primary-color);
+        font-size: 1em;
     }
     
     .message-recipient {
         color: var(--light-text);
-        font-size: 0.9em;
+        font-size: 0.85em;
+        width: 100%;
     }
     
     .message-timestamp {
         color: var(--light-text);
-        font-size: 0.8em;
+        font-size: 0.75em;
+        flex-shrink: 0;
     }
     
     .message-content {
         color: var(--text-color);
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         line-height: 1.4;
+        word-break: break-word;
     }
     
     .message-meta {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-size: 0.8em;
+        font-size: 0.75em;
         color: var(--light-text);
+        flex-wrap: wrap;
+        gap: 8px;
     }
     
     .message-id {
@@ -120,13 +140,15 @@
         background-color: rgba(255, 255, 255, 0.1);
         padding: 2px 6px;
         border-radius: 4px;
+        font-size: 0.8em;
+        word-break: break-all;
     }
     
     .status-badge {
         display: inline-block;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.7em;
+        padding: 2px 6px;
+        border-radius: 10px;
+        font-size: 0.65em;
         font-weight: bold;
     }
     
@@ -142,7 +164,7 @@
     .empty-state {
         text-align: center;
         color: var(--light-text);
-        padding: 40px;
+        padding: 40px 20px;
         font-style: italic;
     }
     
@@ -155,85 +177,164 @@
         background-color: rgba(67, 181, 129, 0.2);
         border-left: 4px solid #43b581;
     }
+
+    @media (max-width: 600px) {
+        body {
+            padding: 10px;
+        }
+        
+        .container {
+            padding: 15px;
+        }
+        
+        .user-header {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .nav-buttons {
+            justify-content: stretch;
+            margin-top: 10px;
+        }
+        
+        .nav-btn {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 8px;
+            font-size: 0.85em;
+        }
+        
+        h1 {
+            font-size: 1.3em;
+        }
+        
+        .message-item {
+            padding: 12px;
+        }
+        
+        .message-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .message-timestamp {
+            align-self: flex-end;
+        }
+        
+        .message-meta {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 5px;
+        }
+        
+        .message-id {
+            align-self: stretch;
+            text-align: center;
+            padding: 4px 8px;
+        }
+    }
+
+    @media (min-width: 601px) and (max-width: 768px) {
+        .message-header {
+            flex-wrap: nowrap;
+        }
+        
+        .message-recipient {
+            width: auto;
+            order: 3;
+            flex-basis: 100%;
+        }
+    }
+
+    @media (max-width: 380px) {
+        .nav-buttons {
+            flex-direction: column;
+        }
+        
+        .message-meta {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
 </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="user-header">
-                <span style="color: var(--text-color); font-weight: bold;">BSM Inbox</span>
-                <div>
-                    <a href="/bsm/send" class="nav-btn">Send Message</a>
-                    <a href="/" class="nav-btn">Back to Chat</a>
-                </div>
-            </div>
-            
-            <h1>Between Server Messages</h1>
-            
-            <div class="messages-list">
-                {% if messages %}
-                    {% for msg in messages %}
-                    <div class="message-item {% if msg.is_sent %}sent-indicator{% else %}received-indicator{% endif %}">
-                        <div class="message-header">
-                            <div>
-                                <div class="message-sender">
-                                    {% if msg.is_sent %}
-                                    To: {{ msg.display_recipient }}
-                                    {% else %}
-                                    From: {{ msg.display_sender }}
-                                    {% endif %}
-                                </div>
-                                <div class="message-recipient">
-                                    {% if not msg.is_sent %}
-                                    To: {{ msg.recipient_beam_number }}
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="message-timestamp">
-                                {{ msg.timestamp }}
-                            </div>
-                        </div>
-                        
-                        <div class="message-content">
-                            {{ msg.message }}
-                        </div>
-                        
-                        <div class="message-meta">
-                            <div>
-                                <span class="status-badge status-{{ msg.status }}">{{ msg.status|title }}</span>
-                                <span class="validation-{{ msg.validation_class }}">
-                                    {{ msg.validation_status|title }}
-                                </span>
-                            </div>
-                            <div class="message-id">{{ msg.message_id }}</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-state">
-                        No BSM messages found.
-                    </div>
-                {% endif %}
+</head>
+<body>
+    <div class="container">
+        <div class="user-header">
+            <span style="color: var(--text-color); font-weight: bold;">BSM Inbox</span>
+            <div class="nav-buttons">
+                <a href="/bsm/send" class="nav-btn">Send Message</a>
+                <a href="/" class="nav-btn">Back to Chat</a>
             </div>
         </div>
         
-        <script>
-            // Load saved theme
-            document.addEventListener('DOMContentLoaded', function() {
-                const savedTheme = localStorage.getItem('beamTheme');
-                if (savedTheme) {
-                    const theme = JSON.parse(savedTheme);
-                    document.documentElement.style.setProperty('--primary-color', theme.primary);
-                    document.documentElement.style.setProperty('--secondary-color', theme.secondary);
-                    document.documentElement.style.setProperty('--background-color', theme.background);
-                    document.documentElement.style.setProperty('--text-color', theme.text);
-                    document.documentElement.style.setProperty('--border-color', theme.border);
-                }
-            });
-            
-            // Auto-refresh every 30 seconds
-            setTimeout(() => {
-                window.location.reload();
-            }, 30000);
-        </script>
-    </body>
-    </html>
+        <h1>Between Server Messages</h1>
+        
+        <div class="messages-list">
+            {% if messages %}
+                {% for msg in messages %}
+                <div class="message-item {% if msg.is_sent %}sent-indicator{% else %}received-indicator{% endif %}">
+                    <div class="message-header">
+                        <div>
+                            <div class="message-sender">
+                                {% if msg.is_sent %}
+                                To: {{ msg.display_recipient }}
+                                {% else %}
+                                From: {{ msg.display_sender }}
+                                {% endif %}
+                            </div>
+                            <div class="message-recipient">
+                                {% if not msg.is_sent %}
+                                To: {{ msg.recipient_beam_number }}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="message-timestamp">
+                            {{ msg.timestamp }}
+                        </div>
+                    </div>
+                    
+                    <div class="message-content">
+                        {{ msg.message }}
+                    </div>
+                    
+                    <div class="message-meta">
+                        <div>
+                            <span class="status-badge status-{{ msg.status }}">{{ msg.status|title }}</span>
+                            <span class="validation-{{ msg.validation_class }}">
+                                {{ msg.validation_status|title }}
+                            </span>
+                        </div>
+                        <div class="message-id">{{ msg.message_id }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    No BSM messages found.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <script>
+        // Load saved theme
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('beamTheme');
+            if (savedTheme) {
+                const theme = JSON.parse(savedTheme);
+                document.documentElement.style.setProperty('--primary-color', theme.primary);
+                document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                document.documentElement.style.setProperty('--background-color', theme.background);
+                document.documentElement.style.setProperty('--text-color', theme.text);
+                document.documentElement.style.setProperty('--border-color', theme.border);
+            }
+        });
+        
+        // Auto-refresh every 30 seconds
+        setTimeout(() => {
+            window.location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

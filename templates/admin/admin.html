@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-    <html>
-    <head>
-        <title>BEAM - Admin Panel</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
+<html>
+<head>
+    <title>BEAM - Admin Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
     :root {
         --primary-color: #7289da;
         --secondary-color: #2c2f33;
@@ -22,14 +22,15 @@
     body { 
         font-family: Arial, sans-serif; 
         background-color: var(--background-color);
-        padding: 20px;
+        padding: 15px;
+        min-height: 100vh;
     }
     
     .container {
         max-width: 800px;
         margin: 0 auto;
         background-color: var(--secondary-color);
-        padding: 30px;
+        padding: 20px;
         border-radius: 8px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         border: 1px solid var(--border-color);
@@ -42,23 +43,29 @@
         margin-bottom: 20px;
         padding-bottom: 10px;
         border-bottom: 1px solid var(--border-color);
+        flex-wrap: wrap;
+        gap: 10px;
     }
     
     .admin-nav {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         margin-bottom: 20px;
+        flex-wrap: wrap;
     }
     
     .nav-btn {
         background-color: var(--primary-color);
         color: white;
         border: none;
-        padding: 8px 15px;
+        padding: 8px 12px;
         border-radius: 4px;
         cursor: pointer;
         text-decoration: none;
         font-size: 0.9em;
+        flex: 1;
+        min-width: 120px;
+        text-align: center;
     }
     
     .nav-btn.active {
@@ -73,6 +80,7 @@
         text-align: center;
         margin-bottom: 20px;
         color: var(--primary-color);
+        font-size: 1.5em;
     }
     
     textarea {
@@ -105,32 +113,75 @@
         transition: background-color 0.3s;
         border-radius: 4px;
         width: 100%;
+        font-size: 1em;
     }
     
     button:hover {
         background-color: #5b73c4;
     }
+
+    @media (max-width: 480px) {
+        body {
+            padding: 10px;
+        }
+        
+        .container {
+            padding: 15px;
+        }
+        
+        .user-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .admin-nav {
+            flex-direction: column;
+        }
+        
+        .nav-btn {
+            min-width: 100%;
+        }
+        
+        h1 {
+            font-size: 1.3em;
+        }
+        
+        textarea {
+            height: 250px;
+            padding: 12px;
+        }
+    }
+
+    @media (min-width: 481px) and (max-width: 768px) {
+        .container {
+            padding: 25px;
+        }
+        
+        .nav-btn {
+            min-width: 140px;
+        }
+    }
 </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="user-header">
-                <span>Admin Panel</span>
-                <a href="/" class="nav-btn">Back to Chat</a>
-            </div>
-            
-            <div class="admin-nav">
-                <a href="/admin" class="nav-btn active">Bulletin Board</a>
-                <a href="/admin/users" class="nav-btn">User Management</a>
-            </div>
-            
-            <h1>Bulletin Board Editor</h1>
-            
-            <form method="post">
-                {% csrf_token %}
-                <textarea name="bulletin_content" placeholder="Enter bulletin board content...">{{ bulletin_content }}</textarea>
-                <button type="submit">Update Bulletin Board</button>
-            </form>
+</head>
+<body>
+    <div class="container">
+        <div class="user-header">
+            <span>Admin Panel</span>
+            <a href="/" class="nav-btn">Back to Chat</a>
         </div>
-    </body>
-    </html>
+        
+        <div class="admin-nav">
+            <a href="/admin" class="nav-btn active">Bulletin Board</a>
+            <a href="/admin/users" class="nav-btn">User Management</a>
+        </div>
+        
+        <h1>Bulletin Board Editor</h1>
+        
+        <form method="post">
+            {% csrf_token %}
+            <textarea name="bulletin_content" placeholder="Enter bulletin board content...">{{ bulletin_content }}</textarea>
+            <button type="submit">Update Bulletin Board</button>
+        </form>
+    </div>
+</body>
+</html>

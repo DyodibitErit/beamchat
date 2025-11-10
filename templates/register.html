@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-    <html>
-    <head>
-        <title>BEAM - Register</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
+<html>
+<head>
+    <title>BEAM - Register</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
     :root {
         --primary-color: #7289da;
         --secondary-color: #2c2f33;
@@ -31,7 +31,7 @@
     
     .register-container {
         background-color: var(--secondary-color);
-        padding: 30px;
+        padding: 25px;
         border-radius: 8px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         width: 100%;
@@ -43,6 +43,7 @@
         text-align: center;
         margin-bottom: 20px;
         color: var(--primary-color);
+        font-size: 1.5em;
     }
     
     .error {
@@ -52,13 +53,14 @@
         background-color: rgba(240, 71, 71, 0.1);
         border: 1px solid rgba(240, 71, 71, 0.3);
         border-radius: 4px;
+        font-size: 0.9em;
     }
     
     .field-error {
         color: #f04747;
-        font-size: 0.9em;
+        font-size: 0.85em;
         margin-top: -10px;
-        margin-bottom: 15px;
+        margin-bottom: 12px;
     }
     
     form {
@@ -98,6 +100,7 @@
         transition: background-color 0.3s;
         width: 100%;
         border-radius: 4px;
+        font-size: 1em;
     }
     
     button:hover {
@@ -108,6 +111,7 @@
         text-align: center;
         margin-top: 20px;
         color: var(--light-text);
+        font-size: 0.9em;
     }
     
     .login-link a {
@@ -118,43 +122,84 @@
     .login-link a:hover {
         text-decoration: underline;
     }
+
+    @media (max-width: 480px) {
+        body {
+            padding: 15px;
+        }
+        
+        .register-container {
+            padding: 20px;
+        }
+        
+        h1 {
+            font-size: 1.3em;
+        }
+        
+        input {
+            padding: 14px 12px;
+            font-size: 16px; /* Prevents zoom on iOS */
+        }
+        
+        button {
+            padding: 14px;
+        }
+        
+        .field-error {
+            font-size: 0.8em;
+        }
+    }
+
+    @media (max-width: 320px) {
+        .register-container {
+            padding: 15px;
+        }
+        
+        h1 {
+            font-size: 1.2em;
+        }
+        
+        input, button {
+            padding: 12px 10px;
+        }
+    }
 </style>
-    </head>
-    <body>
-        <div class="register-container">
-            <h1>BEAM Register</h1>
-            
-            {% if form.non_field_errors %}
-            <div class="error">
-                {% for error in form.non_field_errors %}
-                    {{ error }}
-                {% endfor %}
-            </div>
+</head>
+<body>
+    <div class="register-container">
+        <h1>BEAM Register</h1>
+        
+        {% if form.non_field_errors %}
+        <div class="error">
+            {% for error in form.non_field_errors %}
+                {{ error }}
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <form method="post">
+            {% csrf_token %}
+            <input type="text" name="username" placeholder="Username" required value="{{ form.username.value|default:'' }}">
+            {% if form.username.errors %}
+                <div class="field-error">{{ form.username.errors.0 }}</div>
             {% endif %}
             
-            <form method="post">
-                {% csrf_token %}
-                <input type="text" name="username" placeholder="Username" required value="{{ form.username.value|default:'' }}">
-                {% if form.username.errors %}
-                    <div class="field-error">{{ form.username.errors.0 }}</div>
-                {% endif %}
-                
-                <input type="password" name="password" placeholder="Password" required>
-                {% if form.password.errors %}
-                    <div class="field-error">{{ form.password.errors.0 }}</div>
-                {% endif %}
-                
-                <input type="password" name="confirm_password" placeholder="Confirm Password" required>
-                {% if form.confirm_password.errors %}
-                    <div class="field-error">{{ form.confirm_password.errors.0 }}</div>
-                {% endif %}
-                
-                <button type="submit">Register</button>
-            </form>
+            <input type="password" name="password" placeholder="Password" required>
+            {% if form.password.errors %}
+                <div class="field-error">{{ form.password.errors.0 }}</div>
+            {% endif %}
             
-            <div class="login-link">
-                <p>Already have an account? <a href="/login">Login here</a></p>
-            </div>
+            <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+            {% if form.confirm_password.errors %}
+                <div class="field-error">{{ form.confirm_password.errors.0 }}</div>
+            {% endif %}
+            
+            <button type="submit">Register</button>
+        </form>
+        
+        <div class="login-link">
+            <p>Already have an account? <a href="/login">Login here</a></p>
         </div>
-    </body>
-    </html>
+    </div>
+</body>
+</html>

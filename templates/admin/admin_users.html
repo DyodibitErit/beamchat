@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-    <html>
-    <head>
-        <title>BEAM - User Management</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
+<html>
+<head>
+    <title>BEAM - User Management</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
     :root {
         --primary-color: #7289da;
         --secondary-color: #2c2f33;
@@ -24,14 +24,15 @@
     body { 
         font-family: Arial, sans-serif; 
         background-color: var(--background-color);
-        padding: 20px;
+        padding: 15px;
+        min-height: 100vh;
     }
     
     .container {
         max-width: 1200px;
         margin: 0 auto;
         background-color: var(--secondary-color);
-        padding: 30px;
+        padding: 20px;
         border-radius: 8px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         border: 1px solid var(--border-color);
@@ -41,26 +42,32 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 30px;
+        margin-bottom: 20px;
         padding-bottom: 15px;
         border-bottom: 1px solid var(--border-color);
+        flex-wrap: wrap;
+        gap: 10px;
     }
     
     .admin-nav {
         display: flex;
-        gap: 10px;
+        gap: 8px;
         margin-bottom: 20px;
+        flex-wrap: wrap;
     }
     
     .nav-btn {
         background-color: var(--primary-color);
         color: white;
         border: none;
-        padding: 8px 15px;
+        padding: 8px 12px;
         border-radius: 4px;
         cursor: pointer;
         text-decoration: none;
         font-size: 0.9em;
+        flex: 1;
+        min-width: 120px;
+        text-align: center;
     }
     
     .nav-btn:hover {
@@ -74,24 +81,27 @@
     h1 {
         color: var(--primary-color);
         margin-bottom: 20px;
+        font-size: 1.5em;
     }
     
     h2 {
         color: var(--text-color);
-        margin: 30px 0 15px 0;
+        margin: 25px 0 15px 0;
         padding-bottom: 10px;
         border-bottom: 1px solid var(--border-color);
+        font-size: 1.2em;
     }
     
     .user-table {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 30px;
+        margin-bottom: 25px;
+        font-size: 0.9em;
     }
     
     .user-table th,
     .user-table td {
-        padding: 12px;
+        padding: 10px 8px;
         text-align: left;
         border-bottom: 1px solid var(--border-color);
         color: var(--text-color);
@@ -115,22 +125,24 @@
         background-color: var(--danger-color);
         color: white;
         border: none;
-        padding: 6px 12px;
+        padding: 6px 10px;
         border-radius: 4px;
         cursor: pointer;
         text-decoration: none;
         font-size: 0.8em;
+        white-space: nowrap;
     }
     
     .unban-btn {
         background-color: var(--success-color);
         color: white;
         border: none;
-        padding: 6px 12px;
+        padding: 6px 10px;
         border-radius: 4px;
         cursor: pointer;
         text-decoration: none;
         font-size: 0.8em;
+        white-space: nowrap;
     }
     
     .ban-btn:hover {
@@ -142,31 +154,35 @@
     }
     
     .ban-form {
-        display: inline;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        align-items: center;
     }
     
     .ban-reason-input {
-        padding: 4px 8px;
+        padding: 4px 6px;
         border: 1px solid var(--border-color);
         border-radius: 4px;
         background-color: #40444b;
         color: var(--text-color);
-        margin-right: 5px;
-        width: 200px;
+        flex: 1;
+        min-width: 120px;
+        font-size: 0.8em;
     }
     
     .empty-state {
         text-align: center;
         color: var(--light-text);
-        padding: 40px;
+        padding: 30px;
         font-style: italic;
     }
     
     .status-badge {
         display: inline-block;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.8em;
+        padding: 3px 6px;
+        border-radius: 10px;
+        font-size: 0.7em;
         font-weight: bold;
     }
     
@@ -179,96 +195,284 @@
         background-color: var(--success-color);
         color: white;
     }
+
+    /* Mobile table styles */
+    .mobile-user-card {
+        display: none;
+        background-color: rgba(255, 255, 255, 0.05);
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 10px;
+        border-left: 4px solid var(--primary-color);
+    }
+    
+    .mobile-user-card.banned {
+        border-left-color: var(--danger-color);
+        background-color: rgba(240, 71, 71, 0.1);
+    }
+    
+    .mobile-user-info {
+        margin-bottom: 10px;
+    }
+    
+    .mobile-user-field {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        padding: 3px 0;
+    }
+    
+    .mobile-user-label {
+        color: var(--light-text);
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    
+    .mobile-user-value {
+        color: var(--text-color);
+        text-align: right;
+        flex: 1;
+    }
+    
+    .mobile-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+
+    @media (max-width: 768px) {
+        .user-table {
+            display: none;
+        }
+        
+        .mobile-user-card {
+            display: block;
+        }
+        
+        .admin-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        
+        .admin-nav {
+            flex-direction: column;
+        }
+        
+        .nav-btn {
+            min-width: 100%;
+        }
+    }
+
+    @media (max-width: 480px) {
+        body {
+            padding: 10px;
+        }
+        
+        .container {
+            padding: 15px;
+        }
+        
+        h1 {
+            font-size: 1.3em;
+        }
+        
+        h2 {
+            font-size: 1.1em;
+            margin: 20px 0 12px 0;
+        }
+        
+        .mobile-user-card {
+            padding: 12px;
+        }
+        
+        .ban-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .ban-reason-input {
+            min-width: 100%;
+        }
+    }
+
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .user-table {
+            font-size: 0.85em;
+        }
+        
+        .user-table th,
+        .user-table td {
+            padding: 8px 6px;
+        }
+        
+        .ban-reason-input {
+            width: 150px;
+        }
+    }
 </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="admin-header">
-                <h1>User Management</h1>
-                <a href="/" class="nav-btn">Back to Chat</a>
-            </div>
-            
-            <div class="admin-nav">
-                <a href="/admin" class="nav-btn">Bulletin Board</a>
-                <a href="/admin/users" class="nav-btn active">User Management</a>
-            </div>
-            
-            <h2>Banned Users ({{ banned_users|length }})</h2>
-            {% if banned_users %}
-            <table class="user-table">
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Ban Reason</th>
-                        <th>Banned At</th>
-                        <th>Account Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in banned_users %}
-                    <tr class="banned-user">
-                        <td>{{ user.username }}</td>
-                        <td>{{ user.ban_reason }}</td>
-                        <td>{{ user.banned_at }}</td>
-                        <td>{{ user.created_at }}</td>
-                        <td>
-                            <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="empty-state">No banned users</div>
-            {% endif %}
-            
-            <h2>All Users ({{ users|length }})</h2>
-            {% if users %}
-            <table class="user-table">
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Status</th>
-                        <th>Last Login</th>
-                        <th>Account Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in users %}
-                    <tr>
-                        <td>{{ user.username }}</td>
-                        <td>
-                            {% if user.banned %}
-                            <span class="status-badge status-banned">Banned</span>
-                            {% else %}
-                            <span class="status-badge status-active">Active</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ user.last_login }}</td>
-                        <td>{{ user.created_at }}</td>
-                        <td>
-                            {% if not user.banned and user.username != 'admin' %}
-                            <form class="ban-form" method="get" action="/admin/users">
-                                <input type="hidden" name="action" value="ban">
-                                <input type="hidden" name="user" value="{{ user.username }}">
-                                <input type="text" name="reason" placeholder="Ban reason" class="ban-reason-input" value="Violation of terms of service">
-                                <button type="submit" class="ban-btn">Ban</button>
-                            </form>
-                            {% elif user.banned %}
-                            <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban</a>
-                            {% else %}
-                            <em>No actions</em>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="empty-state">No users found</div>
-            {% endif %}
+</head>
+<body>
+    <div class="container">
+        <div class="admin-header">
+            <h1>User Management</h1>
+            <a href="/" class="nav-btn">Back to Chat</a>
         </div>
-    </body>
-    </html>
+        
+        <div class="admin-nav">
+            <a href="/admin" class="nav-btn">Bulletin Board</a>
+            <a href="/admin/users" class="nav-btn active">User Management</a>
+        </div>
+        
+        <h2>Banned Users ({{ banned_users|length }})</h2>
+        {% if banned_users %}
+        <table class="user-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Ban Reason</th>
+                    <th>Banned At</th>
+                    <th>Account Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in banned_users %}
+                <tr class="banned-user">
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.ban_reason }}</td>
+                    <td>{{ user.banned_at }}</td>
+                    <td>{{ user.created_at }}</td>
+                    <td>
+                        <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Mobile view for banned users -->
+        {% for user in banned_users %}
+        <div class="mobile-user-card banned">
+            <div class="mobile-user-info">
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Username:</span>
+                    <span class="mobile-user-value">{{ user.username }}</span>
+                </div>
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Ban Reason:</span>
+                    <span class="mobile-user-value">{{ user.ban_reason }}</span>
+                </div>
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Banned At:</span>
+                    <span class="mobile-user-value">{{ user.banned_at }}</span>
+                </div>
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Account Created:</span>
+                    <span class="mobile-user-value">{{ user.created_at }}</span>
+                </div>
+            </div>
+            <div class="mobile-actions">
+                <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban User</a>
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% else %}
+        <div class="empty-state">No banned users</div>
+        {% endif %}
+        
+        <h2>All Users ({{ users|length }})</h2>
+        {% if users %}
+        <table class="user-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Account Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>
+                        {% if user.banned %}
+                        <span class="status-badge status-banned">Banned</span>
+                        {% else %}
+                        <span class="status-badge status-active">Active</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.last_login }}</td>
+                    <td>{{ user.created_at }}</td>
+                    <td>
+                        {% if not user.banned and user.username != 'admin' %}
+                        <form class="ban-form" method="get" action="/admin/users">
+                            <input type="hidden" name="action" value="ban">
+                            <input type="hidden" name="user" value="{{ user.username }}">
+                            <input type="text" name="reason" placeholder="Ban reason" class="ban-reason-input" value="Violation of terms of service">
+                            <button type="submit" class="ban-btn">Ban</button>
+                        </form>
+                        {% elif user.banned %}
+                        <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban</a>
+                        {% else %}
+                        <em>No actions</em>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <!-- Mobile view for all users -->
+        {% for user in users %}
+        <div class="mobile-user-card {% if user.banned %}banned{% endif %}">
+            <div class="mobile-user-info">
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Username:</span>
+                    <span class="mobile-user-value">{{ user.username }}</span>
+                </div>
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Status:</span>
+                    <span class="mobile-user-value">
+                        {% if user.banned %}
+                        <span class="status-badge status-banned">Banned</span>
+                        {% else %}
+                        <span class="status-badge status-active">Active</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Last Login:</span>
+                    <span class="mobile-user-value">{{ user.last_login }}</span>
+                </div>
+                <div class="mobile-user-field">
+                    <span class="mobile-user-label">Account Created:</span>
+                    <span class="mobile-user-value">{{ user.created_at }}</span>
+                </div>
+            </div>
+            <div class="mobile-actions">
+                {% if not user.banned and user.username != 'admin' %}
+                <form class="ban-form" method="get" action="/admin/users">
+                    <input type="hidden" name="action" value="ban">
+                    <input type="hidden" name="user" value="{{ user.username }}">
+                    <input type="text" name="reason" placeholder="Ban reason" class="ban-reason-input" value="Violation of terms of service">
+                    <button type="submit" class="ban-btn">Ban User</button>
+                </form>
+                {% elif user.banned %}
+                <a href="/admin/users?action=unban&user={{ user.username }}" class="unban-btn">Unban User</a>
+                {% else %}
+                <em>No actions available</em>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        
+        {% else %}
+        <div class="empty-state">No users found</div>
+        {% endif %}
+    </div>
+</body>
+</html>
