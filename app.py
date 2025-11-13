@@ -197,6 +197,7 @@ BSM_FILE = 'bsm.json'
 BSM_VALIDATION_TIMEOUT = 10  # seconds
 A2A_FILE = 'bsm.a2a'
 BSM_ENABLED = False
+ADMIN_USERS = ['admin']
 
 # Encryption setup
 def get_encryption_key():
@@ -226,6 +227,10 @@ def decrypt_data(encrypted_data):
     if isinstance(encrypted_data, str):
         encrypted_data = encrypted_data.encode('utf-8')
     return cipher_suite.decrypt(encrypted_data).decode('utf-8')
+
+def is_user_admin(username):
+    """Check if a user is an admin"""
+    return username in ADMIN_USERS
 
 # Message storage files
 # Ensure files and directories exist
@@ -598,6 +603,10 @@ def get_user_bsm_messages(username):
     
 def ban_user(username, reason="Violation of terms of service"):
     """Ban a user from the system"""
+    # Prevent banning admin users
+    if is_user_admin(username):
+        return False
+        
     users = read_users()
     if username in users:
         users[username]['banned'] = True
@@ -1712,8 +1721,7 @@ def home_view(request):
     
     username = session['username']
     
-    # Check if user is banned
-    if is_user_banned(username):
+    if is_user_banned(username) and not is_user_admin(username):
         # Log out banned user
         response = HttpResponseRedirect('/login')
         return logout_user(response)
@@ -1779,17 +1787,17 @@ def admin_users_view(request):
     
     username = session['username']
     
-    # Simple admin check
-    if username != 'admin':
+    # Updated admin check
+    if not is_user_admin(username):
         return HttpResponse('Access denied', status=403)
     
     action = request.GET.get('action')
     target_user = request.GET.get('user')
     ban_reason = request.GET.get('reason', 'Violation of terms of service')
     
-    # Handle ban/unban actions
+    # Handle ban/unban actions - prevent admins from banning themselves
     if action and target_user:
-        if action == 'ban' and target_user != 'admin':  # Prevent banning admin
+        if action == 'ban' and not is_user_admin(target_user):  # Prevent banning admins
             success = ban_user(target_user, ban_reason)
             if not success:
                 return HttpResponse('User not found', status=404)
@@ -1803,7 +1811,7 @@ def admin_users_view(request):
     users = get_all_users()
     banned_users = get_banned_users()
     
-        # Load template from file
+    # Load template from file
     template_path = "templates/admin/admin_users.html"
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
@@ -1815,7 +1823,6 @@ def admin_users_view(request):
     })
     
     return HttpResponse(template.render(context))
-
 def admin_view(request):
     session = get_session(request)
     if not session or 'username' not in session:
@@ -1823,8 +1830,8 @@ def admin_view(request):
     
     username = session['username']
     
-    # Simple admin check - in a real app, you'd have proper admin roles
-    if username != 'admin':
+    # Updated admin check
+    if not is_user_admin(username):
         return HttpResponse('Access denied', status=403)
     
     if request.method == 'POST':
@@ -1834,7 +1841,7 @@ def admin_view(request):
     
     bulletin_content = read_bulletin()
     
-        # Load template from file
+    # Load template from file
     template_path = "templates/admin/admin.html"
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
