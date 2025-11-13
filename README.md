@@ -86,5 +86,4 @@ pip install django cryptography pillow requests
 - This is a **single-file Django app** for simplicity and portability—not suitable for high-load production without refactoring.  
 - User authentication is session-cookie-based; no multi-factor authentication.  
 - BSM (cross-server messaging) requires frontend JavaScript to complete delivery—backend only prepares and validates messages.  
-- Admin access is hardcoded to username `admin`—create this user on first run if needed.  
 - TLS support is built-in but uses self-signed certs by default; provide your own for production.  
