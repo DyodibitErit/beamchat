@@ -73,10 +73,7 @@ pip install django cryptography pillow requests
 
 ## File Structure
 
-- `chat_messages.txt` – encrypted chat history  
-- `bulletin_board.txt` – encrypted bulletin content  
-- `users.json` – encrypted user database (passwords, Beam numbers, profile pics)  
-- `bsm.json` – encrypted cross-server BSM messages  
+- `beam_chat.db` – database for chat messages, bulletin board, users and BSM messages
 - `uploads/` – encrypted file attachments (stored with UUID names)  
 - `profile_pics/` – user profile pictures  
 - `encryption.key` – symmetric key for data encryption (keep secret!)  

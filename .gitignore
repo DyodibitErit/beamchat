@@ -1,10 +1,7 @@
 # Data files created by the messenger
-chat_messages.txt
-bulletin_board.txt
-users.json
 encryption.key
-bsm.json
 bsm_agreement.txt
+beam_chat.db
 bsm.a2a
 
 # SSL Sertificates

@@ -29,6 +29,8 @@ import io
 import requests
 import threading
 from urllib.parse import urlparse
+import sqlite3
+from contextlib import contextmanager
 
 class SSLWSGIServer(WSGIServer):
     """WSGI server with SSL support"""
@@ -184,18 +186,15 @@ settings.configure(
 )
 
 # Configuration variables
-CHAT_FILE = 'chat_messages.txt'
-BULLETIN_FILE = 'bulletin_board.txt'
-USERS_FILE = 'users.json'
 UPLOAD_DIR = 'uploads'
 PROFILE_PICS_DIR = 'profile_pics'
 ENCRYPTION_KEY_FILE = 'encryption.key'
+DATABASE_NAME = 'beam_chat.db'
+A2A_FILE = 'bsm.a2a'
 SESSION_COOKIE_NAME = 'beam_session'
 USE_LOCALTUNNEL = False  # Set to True to enable localtunnel
 LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
-BSM_FILE = 'bsm.json'
 BSM_VALIDATION_TIMEOUT = 10  # seconds
-A2A_FILE = 'bsm.a2a'
 BSM_ENABLED = False
 ADMIN_USERS = ['admin']
 
@@ -232,19 +231,6 @@ def is_user_admin(username):
     """Check if a user is an admin"""
     return username in ADMIN_USERS
 
-# Message storage files
-# Ensure files and directories exist
-for file in [CHAT_FILE, BULLETIN_FILE, USERS_FILE]:
-    if not os.path.exists(file):
-        with open(file, 'w') as f:
-            if file == USERS_FILE:
-                f.write('{}')
-            else:
-                f.write('')
-
-if not os.path.exists(BSM_FILE):
-    with open(BSM_FILE, 'w') as f:
-        f.write('[]')
 
 # Create upload directory if it doesn't exist
 if not os.path.exists(UPLOAD_DIR):
@@ -253,6 +239,87 @@ if not os.path.exists(UPLOAD_DIR):
 # Create profile pictures directory if it doesn't exist
 if not os.path.exists(PROFILE_PICS_DIR):
     os.makedirs(PROFILE_PICS_DIR)
+
+def init_database():
+    """Initialize the database with required tables"""
+    conn = sqlite3.connect(DATABASE_NAME)
+    cursor = conn.cursor()
+    
+    # Users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            beam_number TEXT UNIQUE,
+            profile_picture TEXT,
+            created_at TEXT NOT NULL,
+            last_login TEXT,
+            banned INTEGER DEFAULT 0,
+            ban_reason TEXT,
+            banned_at TEXT
+        )
+    ''')
+    
+    # Chat messages table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            filename TEXT,
+            file_url TEXT,
+            is_private INTEGER DEFAULT 0,
+            target_user TEXT,
+            FOREIGN KEY (username) REFERENCES users (username)
+        )
+    ''')
+    
+    # BSM messages table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bsm_messages (
+            message_id TEXT PRIMARY KEY,
+            sender TEXT NOT NULL,
+            sender_server TEXT,
+            recipient_beam_number TEXT NOT NULL,
+            recipient_local_number TEXT,
+            message TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            status TEXT DEFAULT 'sent',
+            validation_status TEXT DEFAULT 'pending',
+            FOREIGN KEY (sender) REFERENCES users (username)
+        )
+    ''')
+    
+    # Bulletin board table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS bulletin_board (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    ''')
+    
+    # Insert default bulletin content if empty
+    cursor.execute('SELECT COUNT(*) FROM bulletin_board')
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            'INSERT INTO bulletin_board (content, updated_at) VALUES (?, ?)',
+            ('Bulletin board is empty.', datetime.now().isoformat())
+        )
+    
+    conn.commit()
+    conn.close()
+
+@contextmanager
+def get_db_connection():
+    """Context manager for database connections"""
+    conn = sqlite3.connect(DATABASE_NAME)
+    conn.row_factory = sqlite3.Row  # This enables column access by name
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 # Forms
 class ChatMessageForm(forms.Form):
@@ -431,30 +498,20 @@ def verify_password(stored_password, provided_password):
         return False
     
 def read_bsm_messages():
-    """Read BSM messages from encrypted file"""
+    """Read BSM messages from database"""
     try:
-        with open(BSM_FILE, 'r', encoding="UTF-8") as f:
-            encrypted_data = f.read()
-            if encrypted_data:
-                decrypted_data = decrypt_data(encrypted_data)
-                return json.loads(decrypted_data)
-            return []
-    except (FileNotFoundError, Exception):
-        # Try to read as plaintext for backward compatibility
-        try:
-            with open(BSM_FILE, 'r', encoding="UTF-8") as f:
-                plain_data = f.read()
-                if plain_data:
-                    return json.loads(plain_data)
-                return []
-        except (FileNotFoundError, json.JSONDecodeError):
-            return []
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM bsm_messages ORDER BY timestamp')
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error:
+        return []
+
 
 def save_bsm_messages(messages):
-    """Save BSM messages to encrypted file"""
-    encrypted_data = encrypt_data(json.dumps(messages))
-    with open(BSM_FILE, 'w', encoding="UTF-8") as f:
-        f.write(encrypted_data)
+    """Save BSM messages to database - Note: Individual operations preferred"""
+    # This function is kept for compatibility
+    pass
 
 def parse_beam_number(beam_number):
     """
@@ -496,12 +553,7 @@ def generate_message_id():
     return str(uuid.uuid4())
 
 def send_bsm_message(sender, recipient_beam_number, message_text, sender_server_url=None):
-    """
-    Send BSM message to recipient
-    Returns: (success, message_id, error_message)
-    """
-    # Note: sender_server_url is now optional and will be handled by frontend
-    
+    """Send BSM message to recipient"""
     recipient_server_url, recipient_local_number = parse_beam_number(recipient_beam_number)
     
     if not recipient_local_number:
@@ -523,24 +575,51 @@ def send_bsm_message(sender, recipient_beam_number, message_text, sender_server_
         'validation_status': 'pending'
     }
     
-    # Save message locally first
-    messages = read_bsm_messages()
-    messages.append(message_data)
-    save_bsm_messages(messages)
-    
-    # All messages are handled by frontend JavaScript now
-    return True, message_id, "Message prepared for delivery via frontend"
-
+    # Save message to database
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO bsm_messages 
+                (message_id, sender, sender_server, recipient_beam_number, 
+                 recipient_local_number, message, timestamp, status, validation_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                message_data['message_id'],
+                message_data['sender'],
+                message_data['sender_server'],
+                message_data['recipient_beam_number'],
+                message_data['recipient_local_number'],
+                message_data['message'],
+                message_data['timestamp'],
+                message_data['status'],
+                message_data['validation_status']
+            ))
+            conn.commit()
+            
+        return True, message_id, "Message prepared for delivery via frontend"
+        
+    except sqlite3.Error as e:
+        return False, None, f"Database error: {str(e)}"
 def update_message_status(message_id, status, validation_status=None):
-    """Update message status"""
-    messages = read_bsm_messages()
-    for msg in messages:
-        if msg['message_id'] == message_id:
-            msg['status'] = status
+    """Update message status in database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
             if validation_status:
-                msg['validation_status'] = validation_status
-            break
-    save_bsm_messages(messages)
+                cursor.execute('''
+                    UPDATE bsm_messages 
+                    SET status = ?, validation_status = ?
+                    WHERE message_id = ?
+                ''', (status, validation_status, message_id))
+            else:
+                cursor.execute(
+                    'UPDATE bsm_messages SET status = ? WHERE message_id = ?',
+                    (status, message_id)
+                )
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error updating message status: {e}")
 
 def validate_message_delivery(message_id, recipient_server_url):
     """Validate that message was properly received by recipient server"""
@@ -568,202 +647,246 @@ def validate_message_delivery(message_id, recipient_server_url):
         update_message_status(message_id, 'delivered', f'validation_failed: {str(e)}')
 
 def get_message_by_id(message_id):
-    """Get message by ID"""
-    messages = read_bsm_messages()
-    for msg in messages:
-        if msg['message_id'] == message_id:
-            return msg
-    return None
+    """Get message by ID from database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM bsm_messages WHERE message_id = ?', (message_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    except sqlite3.Error:
+        return None
 
 def get_user_bsm_messages(username):
-    """Get all BSM messages for a user (both sent and received)"""
-    messages = read_bsm_messages()
-    user_messages = []
-    
-    # Get the user's beam number to match incoming messages
+    """Get all BSM messages for a user from database"""
     user_beam_number = get_user_beam_number(username)
     
-    for msg in messages:
-        # Messages sent by user
-        if msg['sender'] == username:
-            user_messages.append(msg)
-        # Messages received by user - check if recipient beam number matches user's beam number
-        elif msg.get('recipient_local_number') and user_beam_number:
-            # Check if the local number part matches user's beam number
-            if msg['recipient_local_number'] == user_beam_number:
-                user_messages.append(msg)
-        # Also check if recipient_beam_number contains user's beam number (for cross-server messages)
-        elif msg.get('recipient_beam_number') and user_beam_number:
-            # Extract just the number part from recipient_beam_number (format: +server number)
-            beam_parts = msg['recipient_beam_number'].split(' ')
-            if len(beam_parts) == 2 and beam_parts[1] == user_beam_number:
-                user_messages.append(msg)
-    
-    return sorted(user_messages, key=lambda x: x['timestamp'], reverse=True)
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM bsm_messages 
+                WHERE sender = ? OR recipient_local_number = ?
+                ORDER BY timestamp DESC
+            ''', (username, user_beam_number))
+            
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error:
+        return []
     
 def ban_user(username, reason="Violation of terms of service"):
     """Ban a user from the system"""
-    # Prevent banning admin users
     if is_user_admin(username):
         return False
         
-    users = read_users()
-    if username in users:
-        users[username]['banned'] = True
-        users[username]['ban_reason'] = reason
-        users[username]['banned_at'] = datetime.now().isoformat()
-        save_users(users)
-        return True
-    return False
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE users 
+                SET banned = 1, ban_reason = ?, banned_at = ?
+                WHERE username = ?
+            ''', (reason, datetime.now().isoformat(), username))
+            
+            conn.commit()
+            return cursor.rowcount > 0
+    except sqlite3.Error:
+        return False
 
 def unban_user(username):
     """Unban a user"""
-    users = read_users()
-    if username in users and users[username].get('banned', False):
-        users[username]['banned'] = False
-        # Keep ban history but remove active ban
-        save_users(users)
-        return True
-    return False
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'UPDATE users SET banned = 0 WHERE username = ?',
+                (username,)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+    except sqlite3.Error:
+        return False
 
 def is_user_banned(username):
     """Check if a user is banned"""
-    users = read_users()
-    if username in users:
-        return users[username].get('banned', False)
-    return False
+    user = get_user(username)
+    return user.get('banned', False) if user else False
 
 def get_banned_users():
     """Get list of all banned users"""
-    users = read_users()
-    banned_users = []
-    for username, user_data in users.items():
-        if user_data.get('banned', False):
-            banned_users.append({
-                'username': username,
-                'ban_reason': user_data.get('ban_reason', 'No reason provided'),
-                'banned_at': user_data.get('banned_at', 'Unknown'),
-                'created_at': user_data.get('created_at', 'Unknown')
-            })
-    return banned_users
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT username, ban_reason, banned_at, created_at 
+                FROM users 
+                WHERE banned = 1
+            ''')
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error:
+        return []
 
 def get_all_users():
     """Get list of all users with their status"""
-    users = read_users()
-    user_list = []
-    for username, user_data in users.items():
-        user_list.append({
-            'username': username,
-            'banned': user_data.get('banned', False),
-            'ban_reason': user_data.get('ban_reason', ''),
-            'banned_at': user_data.get('banned_at', ''),
-            'created_at': user_data.get('created_at', 'Unknown'),
-            'last_login': user_data.get('last_login', 'Never')
-        })
-    return user_list
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT username, banned, ban_reason, banned_at, created_at, last_login
+                FROM users
+            ''')
+            return [dict(row) for row in cursor.fetchall()]
+    except sqlite3.Error:
+        return []
 
 def read_users():
-    """Read users from the encrypted users file"""
-    try:
-        with open(USERS_FILE, 'r', encoding="UTF-8") as f:
-            encrypted_data = f.read()
-            if encrypted_data:
-                decrypted_data = decrypt_data(encrypted_data)
-                return json.loads(decrypted_data)
-            return {}
-    except (FileNotFoundError, Exception):
-        # Try to read as plaintext for backward compatibility
-        try:
-            with open(USERS_FILE, 'r', encoding="UTF-8") as f:
-                plain_data = f.read()
-                if plain_data:
-                    return json.loads(plain_data)
-                return {}
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
+    """Read all users from database"""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users')
+        users = {}
+        for row in cursor.fetchall():
+            users[row['username']] = dict(row)
+        return users
+    
 
 def save_users(users):
-    """Save users to the encrypted users file"""
-    encrypted_data = encrypt_data(json.dumps(users))
-    with open(USERS_FILE, 'w', encoding="UTF-8") as f:
-        f.write(encrypted_data)
+    """Save users to database - Note: This function may not be needed with direct DB operations"""
+    # This function is kept for compatibility but most operations should be direct DB calls
+    pass
 
 def generate_unique_beam_number():
-    """Generate a unique beam number in format: xxx-xxx-xxx"""
-    users = read_users()
-    
-    while True:
-        # Generate random number parts
-        part1 = ''.join(random.choices('0123456789', k=3))
-        part2 = ''.join(random.choices('0123456789', k=3))
-        part3 = ''.join(random.choices('0123456789', k=3))
-        beam_number = f"{part1}-{part2}-{part3}"
-        
-        # Check if this number is already assigned
-        number_exists = False
-        for user_data in users.values():
-            if user_data.get('beam_number') == beam_number:
-                number_exists = True
-                break
-        
-        if not number_exists:
-            return beam_number
+    """Generate a unique beam number using database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            while True:
+                part1 = ''.join(random.choices('0123456789', k=3))
+                part2 = ''.join(random.choices('0123456789', k=3))
+                part3 = ''.join(random.choices('0123456789', k=3))
+                beam_number = f"{part1}-{part2}-{part3}"
+                
+                # Check if this number is already assigned in database
+                cursor.execute(
+                    'SELECT username FROM users WHERE beam_number = ?',
+                    (beam_number,)
+                )
+                if not cursor.fetchone():
+                    return beam_number
+                    
+    except sqlite3.Error:
+        # Fallback to old method if database fails
+        users = read_users()
+        while True:
+            part1 = ''.join(random.choices('0123456789', k=3))
+            part2 = ''.join(random.choices('0123456789', k=3))
+            part3 = ''.join(random.choices('0123456789', k=3))
+            beam_number = f"{part1}-{part2}-{part3}"
+            
+            number_exists = any(
+                user_data.get('beam_number') == beam_number 
+                for user_data in users.values()
+            )
+            
+            if not number_exists:
+                return beam_number
 
 def create_user(username, password):
-    """Create a new user"""
-    users = read_users()
-    if username in users:
-        return False, "Username already exists"
-    
-    # Generate a default profile picture
-    profile_pic_filename = generate_default_profile_picture(username)
-    
-    # Generate a beam number for the new user
-    beam_number = generate_unique_beam_number()
-    
-    users[username] = {
-        'password_hash': hash_password(password),
-        'created_at': datetime.now().isoformat(),
-        'last_login': None,
-        'profile_picture': profile_pic_filename,
-        'beam_number': beam_number  # Actually generate and store the beam number
-    }
-    save_users(users)
-    return True, "User created successfully"
+    """Create a new user in database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if user already exists
+            cursor.execute('SELECT username FROM users WHERE username = ?', (username,))
+            if cursor.fetchone():
+                return False, "Username already exists"
+            
+            # Generate beam number and profile picture
+            beam_number = generate_unique_beam_number()
+            profile_pic_filename = generate_default_profile_picture(username)
+            
+            # Insert new user
+            cursor.execute('''
+                INSERT INTO users (username, password_hash, beam_number, profile_picture, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                username,
+                hash_password(password),
+                beam_number,
+                profile_pic_filename,
+                datetime.now().isoformat()
+            ))
+            
+            conn.commit()
+            return True, "User created successfully"
+            
+    except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}"
 
 def authenticate_user(username, password):
-    """Authenticate a user"""
-    users = read_users()
-    if username not in users:
-        return False, "User not found"
-    
-    # Check if user is banned
-    if users[username].get('banned', False):
-        ban_reason = users[username].get('ban_reason', 'Violation of terms of service')
-        return False, f"Account banned: {ban_reason}"
-    
-    if not verify_password(users[username]['password_hash'], password):
-        return False, "Invalid password"
-    
-    # Update last login
-    users[username]['last_login'] = datetime.now().isoformat()
-    save_users(users)
-    
-    return True, "Authentication successful"
+    """Authenticate a user against database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT * FROM users WHERE username = ?', 
+                (username,)
+            )
+            user_row = cursor.fetchone()
+            
+            if not user_row:
+                return False, "User not found"
+            
+            user = dict(user_row)
+            
+            # Check if user is banned
+            if user.get('banned'):
+                ban_reason = user.get('ban_reason', 'Violation of terms of service')
+                return False, f"Account banned: {ban_reason}"
+            
+            if not verify_password(user['password_hash'], password):
+                return False, "Invalid password"
+            
+            # Update last login
+            cursor.execute(
+                'UPDATE users SET last_login = ? WHERE username = ?',
+                (datetime.now().isoformat(), username)
+            )
+            conn.commit()
+            
+            return True, "Authentication successful"
+            
+    except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}"
+
 
 def get_user(username):
-    """Get user information"""
-    users = read_users()
-    return users.get(username)
+    """Get user information from database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    except sqlite3.Error:
+        return None
+
 
 def update_user_profile_picture(username, profile_picture_filename):
-    """Update user's profile picture"""
-    users = read_users()
-    if username in users:
-        users[username]['profile_picture'] = profile_picture_filename
-        save_users(users)
-        return True
-    return False
+    """Update user's profile picture in database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'UPDATE users SET profile_picture = ? WHERE username = ?',
+                (profile_picture_filename, username)
+            )
+            conn.commit()
+            return True
+    except sqlite3.Error:
+        return False
 
 def generate_default_profile_picture(username, size=200):
     """Generate a GitHub-style default profile picture"""
@@ -899,39 +1022,27 @@ def logout_user(response):
 
 # Utility functions
 def read_chat_messages():
-    messages = []
+    """Read chat messages from database"""
     try:
-        with open(CHAT_FILE, 'r', encoding="UTF-8") as f:
-            for line in f:
-                if line.strip():
-                    try:
-                        encrypted_data = json.loads(line)
-                        decrypted_data = {
-                            'username': decrypt_data(encrypted_data['username']),
-                            'message': decrypt_data(encrypted_data['message']),
-                            'timestamp': decrypt_data(encrypted_data['timestamp'])
-                        }
-                        if 'filename' in encrypted_data:
-                            decrypted_data['filename'] = decrypt_data(encrypted_data['filename'])
-                        if 'file_url' in encrypted_data:
-                            decrypted_data['file_url'] = decrypt_data(encrypted_data['file_url'])
-                        # Add private message fields if they exist
-                        if 'is_private' in encrypted_data:
-                            decrypted_data['is_private'] = decrypt_data(encrypted_data['is_private']) == "True"
-                        if 'target_user' in encrypted_data:
-                            decrypted_data['target_user'] = decrypt_data(encrypted_data['target_user'])
-                        messages.append(decrypted_data)
-                    except Exception as e:
-                        print(f"Error decrypting message: {e}")
-                        # Try to read as plaintext for backward compatibility
-                        try:
-                            plain_data = json.loads(line)
-                            messages.append(plain_data)
-                        except:
-                            pass
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    return messages
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT username, message, timestamp, filename, file_url, 
+                       is_private, target_user
+                FROM chat_messages 
+                ORDER BY timestamp
+            ''')
+            
+            messages = []
+            for row in cursor.fetchall():
+                message_data = dict(row)
+                # Convert boolean values
+                message_data['is_private'] = bool(message_data['is_private'])
+                messages.append(message_data)
+                
+            return messages
+    except sqlite3.Error:
+        return []
 
 def handle_private_message(message_text):
     """
@@ -970,116 +1081,126 @@ def handle_message_edit(message_text):
     
     return None, None
 
-
-def save_chat_message(username, message, filename=None, file_url=None):
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    # Check if this is an edit command
-    old_word, new_word = handle_message_edit(message)
-    if old_word is not None:
-        # This is an edit command, find the user's last message
-        messages = read_chat_messages()
-        user_messages = [msg for msg in messages if msg['username'] == username]
-        
-        if user_messages:
-            last_message = user_messages[-1]
-            original_text = last_message['message']
+def handle_message_edit_in_db(username, old_word, new_word, timestamp):
+    """Handle message editing in database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get user's last message
+            cursor.execute('''
+                SELECT id, message FROM chat_messages 
+                WHERE username = ? 
+                ORDER BY timestamp DESC 
+                LIMIT 1
+            ''', (username,))
+            
+            result = cursor.fetchone()
+            if not result:
+                return {
+                    'username': username,
+                    'message': f"(edit failed) s/{old_word}/{new_word}",
+                    'timestamp': timestamp
+                }
+            
+            message_id, original_text = result['id'], result['message']
             
             # Replace only the first occurrence
             if old_word in original_text:
                 edited_text = original_text.replace(old_word, new_word, 1)
                 
-                # Update the message in the file
-                updated_messages = []
-                message_updated = False
+                # Update the message in database
+                cursor.execute(
+                    'UPDATE chat_messages SET message = ? WHERE id = ?',
+                    (edited_text, message_id)
+                )
+                conn.commit()
                 
-                with open(CHAT_FILE, 'r', encoding="UTF-8") as f:
-                    for line in f:
-                        if line.strip():
-                            try:
-                                encrypted_data = json.loads(line)
-                                decrypted_username = decrypt_data(encrypted_data['username'])
-                                
-                                # Find the user's last message that matches the original text
-                                if (decrypted_username == username and 
-                                    not message_updated and
-                                    decrypt_data(encrypted_data['message']) == original_text):
-                                    
-                                    # Encrypt the edited message
-                                    encrypted_data['message'] = encrypt_data(edited_text)
-                                    message_updated = True
-                                
-                                updated_messages.append(json.dumps(encrypted_data) + '\n')
-                            except:
-                                updated_messages.append(line)
-                
-                # Write the updated messages back to the file
-                with open(CHAT_FILE, 'w', encoding="UTF-8") as f:
-                    f.writelines(updated_messages)
-                
-                # Return the edited message for display
                 return {
                     'username': username,
                     'message': f"{edited_text} (edited)",
-                    'timestamp': timestamp,
-                    'filename': filename,
-                    'file_url': file_url
+                    'timestamp': timestamp
                 }
-        
-        # If no message was found to edit, treat as a regular message
-        message = f"(edit failed) {message}"
-    
-    # Check if this is a private message
-    target_username, private_message = handle_private_message(message)
-    if target_username is not None:
-        # Store private message with special format
-        encrypted_data = {
-            'username': encrypt_data(username),
-            'message': encrypt_data(f"(to {target_username}) {private_message}"),
-            'timestamp': encrypt_data(timestamp),
-            'is_private': encrypt_data("True"),
-            'target_user': encrypt_data(target_username)
-        }
-        
-        if filename and file_url:
-            encrypted_data['filename'] = encrypt_data(filename)
-            encrypted_data['file_url'] = encrypt_data(file_url)
-        
-        with open(CHAT_FILE, 'a', encoding="UTF-8") as f:
-            f.write(json.dumps(encrypted_data) + '\n')
-        
+            else:
+                return {
+                    'username': username,
+                    'message': f"(edit failed) s/{old_word}/{new_word}",
+                    'timestamp': timestamp
+                }
+                
+    except sqlite3.Error as e:
+        print(f"Database error editing message: {e}")
         return {
             'username': username,
-            'message': f"(to {target_username}) {private_message}",
-            'timestamp': timestamp,
-            'filename': filename,
-            'file_url': file_url,
-            'is_private': True,
-            'target_user': target_username
+            'message': f"(edit failed) s/{old_word}/{new_word}",
+            'timestamp': timestamp
         }
+
+def save_chat_message(username, message, filename=None, file_url=None):
+    """Save chat message to database"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Encrypt all data for a regular message
-    encrypted_data = {
-        'username': encrypt_data(username),
-        'message': encrypt_data(message),
-        'timestamp': encrypt_data(timestamp)
-    }
+    # Handle message editing (s/old/new syntax)
+    old_word, new_word = handle_message_edit(message)
+    if old_word is not None:
+        return handle_message_edit_in_db(username, old_word, new_word, timestamp)
     
-    if filename and file_url:
-        encrypted_data['filename'] = encrypt_data(filename)
-        encrypted_data['file_url'] = encrypt_data(file_url)
+    # Handle private messages (m/user/message syntax)
+    target_username, private_message = handle_private_message(message)
+    is_private = target_username is not None
     
-    with open(CHAT_FILE, 'a', encoding="UTF-8") as f:
-        f.write(json.dumps(encrypted_data) + '\n')
-    
-    # Return decrypted data for immediate use
-    return {
-        'username': username,
-        'message': message,
-        'timestamp': timestamp,
-        'filename': filename,
-        'file_url': file_url
-    }
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            if is_private:
+                # Store private message
+                cursor.execute('''
+                    INSERT INTO chat_messages 
+                    (username, message, timestamp, filename, file_url, is_private, target_user)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    username,
+                    f"(to {target_username}) {private_message}",
+                    timestamp,
+                    filename,
+                    file_url,
+                    1,  # True
+                    target_username
+                ))
+                display_message = f"(to {target_username}) {private_message}"
+            else:
+                # Store regular message
+                cursor.execute('''
+                    INSERT INTO chat_messages 
+                    (username, message, timestamp, filename, file_url, is_private)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    username,
+                    message,
+                    timestamp,
+                    filename,
+                    file_url,
+                    0  # False
+                ))
+                display_message = message
+            
+            conn.commit()
+            
+            # Return message data for immediate use
+            return {
+                'username': username,
+                'message': display_message,
+                'timestamp': timestamp,
+                'filename': filename,
+                'file_url': file_url,
+                'is_private': is_private,
+                'target_user': target_username
+            }
+            
+    except sqlite3.Error as e:
+        print(f"Database error saving message: {e}")
+        return None
 
 def get_user_beam_number(username):
     """Get the beam number for a user"""
@@ -1098,25 +1219,29 @@ def get_full_beam_number(username):
     return None
 
 def read_bulletin():
+    """Read bulletin content from database"""
     try:
-        with open(BULLETIN_FILE, 'r', encoding="UTF-8") as f:
-            encrypted_content = f.read()
-            if encrypted_content:
-                return decrypt_data(encrypted_content)
-            return "Bulletin board is empty."
-    except (FileNotFoundError, Exception):
-        try:
-            # Try to read as plaintext for backward compatibility
-            with open(BULLETIN_FILE, 'r', encoding="UTF-8") as f:
-                return f.read()
-        except FileNotFoundError:
-            return "Bulletin board is empty."
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT content FROM bulletin_board ORDER BY id DESC LIMIT 1')
+            row = cursor.fetchone()
+            return row['content'] if row else "Bulletin board is empty."
+    except sqlite3.Error:
+        return "Bulletin board is empty."
 
 def write_bulletin(content):
-    encrypted_content = encrypt_data(content)
-    with open(BULLETIN_FILE, 'w', encoding="UTF-8") as f:
-        f.write(encrypted_content)
-    return content
+    """Write bulletin content to database"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'INSERT INTO bulletin_board (content, updated_at) VALUES (?, ?)',
+                (content, datetime.now().isoformat())
+            )
+            conn.commit()
+        return content
+    except sqlite3.Error:
+        return "Error updating bulletin board"
 
 def save_uploaded_file(uploaded_file):
     # Генерируем уникальное имя файла для предотвращения конфликтов
@@ -1910,6 +2035,7 @@ if __name__ == '__main__':
     import argparse
     create_bsm_agreement_file()
     check_bsm_agreement()
+    init_database()
     
     # Start localtunnel if enabled
     if USE_LOCALTUNNEL:
