@@ -192,8 +192,6 @@ ENCRYPTION_KEY_FILE = 'encryption.key'
 DATABASE_NAME = 'beam_chat.db'
 A2A_FILE = 'bsm.a2a'
 SESSION_COOKIE_NAME = 'beam_session'
-USE_LOCALTUNNEL = False  # Set to True to enable localtunnel
-LOCALTUNNEL_SUBDOMAIN = None  # Set to a specific subdomain if desired
 BSM_VALIDATION_TIMEOUT = 10  # seconds
 BSM_ENABLED = False
 ADMIN_USERS = ['admin']
@@ -1255,31 +1253,6 @@ def save_uploaded_file(uploaded_file):
     
     return filename, f"/download/{filename}"
 
-# LocalTunnel functions
-def start_localtunnel():
-    """Start localtunnel in a separate thread"""
-    def run_localtunnel():
-        # Wait a moment for Django to start
-        time.sleep(3)
-        
-        try:
-            cmd = 'lt --port 8000'
-            if LOCALTUNNEL_SUBDOMAIN:
-                cmd = f'lt --port 8000 --subdomain {LOCALTUNNEL_SUBDOMAIN}'
-            
-            print("Starting localtunnel...")
-            print(f"Command: {cmd}")
-            
-            # Use os.system to execute the command
-            os.system(cmd)
-                
-        except Exception as e:
-            print(f"Error starting localtunnel: {e}")
-    
-    if USE_LOCALTUNNEL:
-        thread = threading.Thread(target=run_localtunnel, daemon=True)
-        thread.start()
-
 def get_current_server_url(request):
     """Get the current server's URL from the request"""
     scheme = 'https' if request.is_secure() else 'http'
@@ -2036,10 +2009,6 @@ if __name__ == '__main__':
     create_bsm_agreement_file()
     check_bsm_agreement()
     init_database()
-    
-    # Start localtunnel if enabled
-    if USE_LOCALTUNNEL:
-        start_localtunnel()
     
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='BEAM Chat Server')
