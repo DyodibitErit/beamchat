@@ -1,3 +1,8 @@
+#BeamChat - self-hosted messenger
+
+#WARNING: change the variable below to set a SECRET_KEY for the server (not changing this can lead to session hijacking, cookie files forging, CSRF vulnerabilities. we don't want that to happend, do we?)
+DJ_SECRET_KEY = "CHANGEINPROD123"
+
 import os
 import json
 from datetime import datetime
@@ -166,8 +171,8 @@ def run_http_server(host='0.0.0.0', port=8000):
 
 # Configure Django settings
 settings.configure(
-    DEBUG=True,
-    SECRET_KEY='changeinprod123',
+    DEBUG=False,
+    SECRET_KEY=DJ_SECRET_KEY,
     ROOT_URLCONF=__name__,
     ALLOWED_HOSTS=['*'],
     INSTALLED_APPS=[
