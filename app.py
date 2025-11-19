@@ -501,13 +501,35 @@ def verify_password(stored_password, provided_password):
         return False
     
 def read_bsm_messages():
-    """Read BSM messages from database"""
+    """Read BSM messages from database with decrypted content"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM bsm_messages ORDER BY timestamp')
-            return [dict(row) for row in cursor.fetchall()]
-    except sqlite3.Error:
+            
+            decrypted_messages = []
+            for row in cursor.fetchall():
+                message_data = dict(row)
+                
+                # Decrypt all encrypted fields
+                if message_data.get('sender'):
+                    message_data['sender'] = decrypt_data(message_data['sender'])
+                if message_data.get('sender_server'):
+                    message_data['sender_server'] = decrypt_data(message_data['sender_server'])
+                if message_data.get('recipient_beam_number'):
+                    message_data['recipient_beam_number'] = decrypt_data(message_data['recipient_beam_number'])
+                if message_data.get('recipient_local_number'):
+                    message_data['recipient_local_number'] = decrypt_data(message_data['recipient_local_number'])
+                if message_data.get('message'):
+                    message_data['message'] = decrypt_data(message_data['message'])
+                if message_data.get('timestamp'):
+                    message_data['timestamp'] = decrypt_data(message_data['timestamp'])
+                    
+                decrypted_messages.append(message_data)
+                
+            return decrypted_messages
+    except Exception as e:
+        print(f"Error decrypting BSM messages: {e}")
         return []
 
 
@@ -556,7 +578,7 @@ def generate_message_id():
     return str(uuid.uuid4())
 
 def send_bsm_message(sender, recipient_beam_number, message_text, sender_server_url=None):
-    """Send BSM message to recipient"""
+    """Send BSM message to recipient with encrypted content"""
     recipient_server_url, recipient_local_number = parse_beam_number(recipient_beam_number)
     
     if not recipient_local_number:
@@ -565,20 +587,28 @@ def send_bsm_message(sender, recipient_beam_number, message_text, sender_server_
     message_id = generate_message_id()
     timestamp = datetime.now().isoformat()
     
-    # Create message object
+    # Encrypt sensitive data
+    encrypted_sender = encrypt_data(sender)
+    encrypted_recipient_beam_number = encrypt_data(recipient_beam_number)
+    encrypted_recipient_local_number = encrypt_data(recipient_local_number)
+    encrypted_message_text = encrypt_data(message_text)
+    encrypted_timestamp = encrypt_data(timestamp)
+    encrypted_sender_server = encrypt_data(sender_server_url) if sender_server_url else None
+    
+    # Create message object with encrypted data
     message_data = {
         'message_id': message_id,
-        'sender': sender,
-        'sender_server': sender_server_url,
-        'recipient_beam_number': recipient_beam_number,
-        'recipient_local_number': recipient_local_number,
-        'message': message_text,
-        'timestamp': timestamp,
+        'sender': encrypted_sender,
+        'sender_server': encrypted_sender_server,
+        'recipient_beam_number': encrypted_recipient_beam_number,
+        'recipient_local_number': encrypted_recipient_local_number,
+        'message': encrypted_message_text,
+        'timestamp': encrypted_timestamp,
         'status': 'sent',
         'validation_status': 'pending'
     }
     
-    # Save message to database
+    # Save encrypted message to database
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -649,32 +679,78 @@ def validate_message_delivery(message_id, recipient_server_url):
     except requests.exceptions.RequestException as e:
         update_message_status(message_id, 'delivered', f'validation_failed: {str(e)}')
 
+
 def get_message_by_id(message_id):
-    """Get message by ID from database"""
+    """Get message by ID from database with decrypted content"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM bsm_messages WHERE message_id = ?', (message_id,))
             row = cursor.fetchone()
-            return dict(row) if row else None
-    except sqlite3.Error:
+            
+            if not row:
+                return None
+                
+            message_data = dict(row)
+            
+            # Decrypt all encrypted fields
+            if message_data.get('sender'):
+                message_data['sender'] = decrypt_data(message_data['sender'])
+            if message_data.get('sender_server'):
+                message_data['sender_server'] = decrypt_data(message_data['sender_server'])
+            if message_data.get('recipient_beam_number'):
+                message_data['recipient_beam_number'] = decrypt_data(message_data['recipient_beam_number'])
+            if message_data.get('recipient_local_number'):
+                message_data['recipient_local_number'] = decrypt_data(message_data['recipient_local_number'])
+            if message_data.get('message'):
+                message_data['message'] = decrypt_data(message_data['message'])
+            if message_data.get('timestamp'):
+                message_data['timestamp'] = decrypt_data(message_data['timestamp'])
+                
+            return message_data
+    except Exception as e:
+        print(f"Error decrypting message: {e}")
         return None
 
 def get_user_bsm_messages(username):
-    """Get all BSM messages for a user from database"""
+    """Get all BSM messages for a user from database with decrypted content"""
     user_beam_number = get_user_beam_number(username)
     
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            
+            # Get encrypted messages from database
             cursor.execute('''
                 SELECT * FROM bsm_messages 
-                WHERE sender = ? OR recipient_local_number = ?
                 ORDER BY timestamp DESC
-            ''', (username, user_beam_number))
+            ''')
             
-            return [dict(row) for row in cursor.fetchall()]
-    except sqlite3.Error:
+            decrypted_messages = []
+            for row in cursor.fetchall():
+                message_data = dict(row)
+                
+                # Decrypt all fields
+                if message_data.get('sender'):
+                    message_data['sender'] = decrypt_data(message_data['sender'])
+                if message_data.get('sender_server'):
+                    message_data['sender_server'] = decrypt_data(message_data['sender_server'])
+                if message_data.get('recipient_beam_number'):
+                    message_data['recipient_beam_number'] = decrypt_data(message_data['recipient_beam_number'])
+                if message_data.get('recipient_local_number'):
+                    message_data['recipient_local_number'] = decrypt_data(message_data['recipient_local_number'])
+                if message_data.get('message'):
+                    message_data['message'] = decrypt_data(message_data['message'])
+                if message_data.get('timestamp'):
+                    message_data['timestamp'] = decrypt_data(message_data['timestamp'])
+                
+                # Filter for current user after decryption
+                if message_data['sender'] == username or message_data.get('recipient_local_number') == user_beam_number:
+                    decrypted_messages.append(message_data)
+                    
+            return decrypted_messages
+    except Exception as e:
+        print(f"Error decrypting BSM messages: {e}")
         return []
     
 def ban_user(username, reason="Violation of terms of service"):
@@ -743,13 +819,27 @@ def get_all_users():
         return []
 
 def read_users():
-    """Read all users from database"""
+    """Read all users from database with decrypted data"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users')
         users = {}
         for row in cursor.fetchall():
-            users[row['username']] = dict(row)
+            user_data = dict(row)
+            
+            # Decrypt sensitive fields for each user
+            if user_data.get('beam_number'):
+                user_data['beam_number'] = decrypt_data(user_data['beam_number'])
+            if user_data.get('profile_picture'):
+                user_data['profile_picture'] = decrypt_data(user_data['profile_picture'])
+            if user_data.get('created_at'):
+                user_data['created_at'] = decrypt_data(user_data['created_at'])
+            if user_data.get('last_login'):
+                user_data['last_login'] = decrypt_data(user_data['last_login'])
+            if user_data.get('banned_at'):
+                user_data['banned_at'] = decrypt_data(user_data['banned_at'])
+                
+            users[user_data['username']] = user_data
         return users
     
 
@@ -796,7 +886,7 @@ def generate_unique_beam_number():
                 return beam_number
 
 def create_user(username, password):
-    """Create a new user in database"""
+    """Create a new user in database with encrypted data"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -810,16 +900,20 @@ def create_user(username, password):
             beam_number = generate_unique_beam_number()
             profile_pic_filename = generate_default_profile_picture(username)
             
-            # Insert new user
+            # Encrypt sensitive data
+            encrypted_beam_number = encrypt_data(beam_number) if beam_number else None
+            encrypted_profile_picture = encrypt_data(profile_pic_filename) if profile_pic_filename else None
+            
+            # Insert new user with encrypted data
             cursor.execute('''
                 INSERT INTO users (username, password_hash, beam_number, profile_picture, created_at)
                 VALUES (?, ?, ?, ?, ?)
             ''', (
                 username,
-                hash_password(password),
-                beam_number,
-                profile_pic_filename,
-                datetime.now().isoformat()
+                hash_password(password),  # Password is already hashed, no need to encrypt
+                encrypted_beam_number,
+                encrypted_profile_picture,
+                encrypt_data(datetime.now().isoformat())  # Encrypt timestamp
             ))
             
             conn.commit()
@@ -866,25 +960,46 @@ def authenticate_user(username, password):
 
 
 def get_user(username):
-    """Get user information from database"""
+    """Get user information from database with decrypted data"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
             row = cursor.fetchone()
-            return dict(row) if row else None
-    except sqlite3.Error:
+            
+            if not row:
+                return None
+                
+            user_data = dict(row)
+            
+            # Decrypt sensitive fields
+            if user_data.get('beam_number'):
+                user_data['beam_number'] = decrypt_data(user_data['beam_number'])
+            if user_data.get('profile_picture'):
+                user_data['profile_picture'] = decrypt_data(user_data['profile_picture'])
+            if user_data.get('created_at'):
+                user_data['created_at'] = decrypt_data(user_data['created_at'])
+            if user_data.get('last_login'):
+                user_data['last_login'] = decrypt_data(user_data['last_login'])
+            if user_data.get('banned_at'):
+                user_data['banned_at'] = decrypt_data(user_data['banned_at'])
+                
+            return user_data
+    except Exception as e:
+        print(f"Error decrypting user data: {e}")
         return None
 
 
 def update_user_profile_picture(username, profile_picture_filename):
-    """Update user's profile picture in database"""
+    """Update user's profile picture in database with encrypted data"""
     try:
+        encrypted_filename = encrypt_data(profile_picture_filename) if profile_picture_filename else None
+        
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 'UPDATE users SET profile_picture = ? WHERE username = ?',
-                (profile_picture_filename, username)
+                (encrypted_filename, username)
             )
             conn.commit()
             return True
@@ -1025,7 +1140,7 @@ def logout_user(response):
 
 # Utility functions
 def read_chat_messages():
-    """Read chat messages from database"""
+    """Read chat messages from database with decrypted content"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -1039,12 +1154,29 @@ def read_chat_messages():
             messages = []
             for row in cursor.fetchall():
                 message_data = dict(row)
+                
+                # Decrypt all encrypted fields
+                if message_data.get('message'):
+                    message_data['message'] = decrypt_data(message_data['message'])
+                if message_data.get('timestamp'):
+                    message_data['timestamp'] = decrypt_data(message_data['timestamp'])
+                if message_data.get('filename'):
+                    message_data['filename'] = decrypt_data(message_data['filename'])
+                if message_data.get('file_url'):
+                    message_data['file_url'] = decrypt_data(message_data['file_url'])
+                if message_data.get('target_user'):
+                    message_data['target_user'] = decrypt_data(message_data['target_user'])
+                
                 # Convert boolean values
                 message_data['is_private'] = bool(message_data['is_private'])
                 messages.append(message_data)
                 
             return messages
-    except sqlite3.Error:
+    except sqlite3.Error as e:
+        print(f"Database error reading messages: {e}")
+        return []
+    except Exception as e:
+        print(f"Error decrypting messages: {e}")
         return []
 
 def handle_private_message(message_text):
@@ -1085,7 +1217,7 @@ def handle_message_edit(message_text):
     return None, None
 
 def handle_message_edit_in_db(username, old_word, new_word, timestamp):
-    """Handle message editing in database"""
+    """Handle message editing in database with encrypted content"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -1106,16 +1238,20 @@ def handle_message_edit_in_db(username, old_word, new_word, timestamp):
                     'timestamp': timestamp
                 }
             
-            message_id, original_text = result['id'], result['message']
+            message_id, encrypted_original_text = result['id'], result['message']
+            
+            # Decrypt the original message
+            original_text = decrypt_data(encrypted_original_text)
             
             # Replace only the first occurrence
             if old_word in original_text:
                 edited_text = original_text.replace(old_word, new_word, 1)
                 
-                # Update the message in database
+                # Encrypt and update the message in database
+                encrypted_edited_text = encrypt_data(edited_text)
                 cursor.execute(
                     'UPDATE chat_messages SET message = ? WHERE id = ?',
-                    (edited_text, message_id)
+                    (encrypted_edited_text, message_id)
                 )
                 conn.commit()
                 
@@ -1140,7 +1276,7 @@ def handle_message_edit_in_db(username, old_word, new_word, timestamp):
         }
 
 def save_chat_message(username, message, filename=None, file_url=None):
-    """Save chat message to database"""
+    """Save chat message to database with encrypted content"""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     # Handle message editing (s/old/new syntax)
@@ -1156,41 +1292,51 @@ def save_chat_message(username, message, filename=None, file_url=None):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
+            # Encrypt message content and timestamp
+            encrypted_timestamp = encrypt_data(timestamp)
+            encrypted_filename = encrypt_data(filename) if filename else None
+            encrypted_file_url = encrypt_data(file_url) if file_url else None
+            
             if is_private:
-                # Store private message
+                # Encrypt private message
+                encrypted_message = encrypt_data(f"(to {target_username}) {private_message}")
+                encrypted_target_user = encrypt_data(target_username)
+                
                 cursor.execute('''
                     INSERT INTO chat_messages 
                     (username, message, timestamp, filename, file_url, is_private, target_user)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     username,
-                    f"(to {target_username}) {private_message}",
-                    timestamp,
-                    filename,
-                    file_url,
+                    encrypted_message,
+                    encrypted_timestamp,
+                    encrypted_filename,
+                    encrypted_file_url,
                     1,  # True
-                    target_username
+                    encrypted_target_user
                 ))
                 display_message = f"(to {target_username}) {private_message}"
             else:
-                # Store regular message
+                # Encrypt regular message
+                encrypted_message = encrypt_data(message)
+                
                 cursor.execute('''
                     INSERT INTO chat_messages 
                     (username, message, timestamp, filename, file_url, is_private)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ''', (
                     username,
-                    message,
-                    timestamp,
-                    filename,
-                    file_url,
+                    encrypted_message,
+                    encrypted_timestamp,
+                    encrypted_filename,
+                    encrypted_file_url,
                     0  # False
                 ))
                 display_message = message
             
             conn.commit()
             
-            # Return message data for immediate use
+            # Return decrypted message data for immediate use
             return {
                 'username': username,
                 'message': display_message,
@@ -1222,28 +1368,37 @@ def get_full_beam_number(username):
     return None
 
 def read_bulletin():
-    """Read bulletin content from database"""
+    """Read bulletin content from database with decrypted content"""
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute('SELECT content FROM bulletin_board ORDER BY id DESC LIMIT 1')
             row = cursor.fetchone()
-            return row['content'] if row else "Bulletin board is empty."
-    except sqlite3.Error:
+            
+            if row and row['content']:
+                # Decrypt the bulletin content
+                return decrypt_data(row['content'])
+            else:
+                return "Bulletin board is empty."
+    except Exception as e:
+        print(f"Error decrypting bulletin: {e}")
         return "Bulletin board is empty."
 
 def write_bulletin(content):
-    """Write bulletin content to database"""
+    """Write bulletin content to database with encrypted content"""
     try:
+        encrypted_content = encrypt_data(content)
+        
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 'INSERT INTO bulletin_board (content, updated_at) VALUES (?, ?)',
-                (content, datetime.now().isoformat())
+                (encrypted_content, encrypt_data(datetime.now().isoformat()))
             )
             conn.commit()
         return content
-    except sqlite3.Error:
+    except Exception as e:
+        print(f"Error encrypting bulletin: {e}")
         return "Error updating bulletin board"
 
 def save_uploaded_file(uploaded_file):
