@@ -534,9 +534,46 @@ def read_bsm_messages():
 
 
 def save_bsm_messages(messages):
-    """Save BSM messages to database - Note: Individual operations preferred"""
-    # This function is kept for compatibility
-    pass
+    """Save BSM messages to database with encrypted content"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Clear existing messages (for compatibility with old code)
+            cursor.execute('DELETE FROM bsm_messages')
+            
+            # Insert all messages with encrypted data
+            for msg in messages:
+                # Encrypt all sensitive fields
+                encrypted_sender = encrypt_data(msg.get('sender', ''))
+                encrypted_sender_server = encrypt_data(msg.get('sender_server', ''))
+                encrypted_recipient_beam_number = encrypt_data(msg.get('recipient_beam_number', ''))
+                encrypted_recipient_local_number = encrypt_data(msg.get('recipient_local_number', ''))
+                encrypted_message = encrypt_data(msg.get('message', ''))
+                encrypted_timestamp = encrypt_data(msg.get('timestamp', ''))
+                
+                cursor.execute('''
+                    INSERT INTO bsm_messages 
+                    (message_id, sender, sender_server, recipient_beam_number, 
+                     recipient_local_number, message, timestamp, status, validation_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    msg.get('message_id', generate_message_id()),
+                    encrypted_sender,
+                    encrypted_sender_server,
+                    encrypted_recipient_beam_number,
+                    encrypted_recipient_local_number,
+                    encrypted_message,
+                    encrypted_timestamp,
+                    msg.get('status', 'sent'),
+                    msg.get('validation_status', 'pending')
+                ))
+            
+            conn.commit()
+            print(f"Saved {len(messages)} BSM messages to database")
+            
+    except Exception as e:
+        print(f"Error saving BSM messages: {e}")
 
 def parse_beam_number(beam_number):
     """
@@ -1438,7 +1475,8 @@ def bsm_receive_message(request):
                 'sender_server': request.POST.get('sender_server'),
                 'recipient_beam_number': request.POST.get('recipient_beam_number'),
                 'message': request.POST.get('message'),
-                'timestamp': request.POST.get('timestamp')
+                'timestamp': request.POST.get('timestamp'),
+                'message_id': request.POST.get('message_id')
             }
         
         # Validate required fields
@@ -1447,43 +1485,77 @@ def bsm_receive_message(request):
             if field not in data or not data[field]:
                 return JsonResponse({'error': f'Missing field: {field}'}, status=400)
         
-        # Generate message ID if not provided (for frontend requests)
+        # Generate message ID if not provided
         message_id = data.get('message_id') or generate_message_id()
         
         # Parse recipient beam number to extract local number
         recipient_server_url, recipient_local_number = parse_beam_number(data['recipient_beam_number'])
         
-        # Add received message
-        message_data = {
-            'message_id': message_id,
-            'sender': data['sender'],
-            'sender_server': data['sender_server'],
-            'recipient_beam_number': data['recipient_beam_number'],
-            'recipient_local_number': recipient_local_number,  # Store the local number for matching
-            'message': data['message'],
-            'timestamp': data['timestamp'],
-            'status': 'received',
-            'validation_status': 'pending_validation'
-        }
-        
-        messages = read_bsm_messages()
-        messages.append(message_data)
-        save_bsm_messages(messages)
-        
-        # Start validation if it's from another server
+        # Check if this is a local user (same server)
+        is_local_user = False
         current_server_url = get_current_server_url(request)
-        if data['sender_server'] != current_server_url:
-            threading.Thread(
-                target=validate_message_delivery,
-                args=(message_id, data['sender_server']),
-                daemon=True
-            ).start()
+        if recipient_server_url and recipient_local_number:
+            # Check if recipient_local_number matches any user on this server
+            users = read_users()
+            for username, user_data in users.items():
+                if user_data.get('beam_number') == recipient_local_number:
+                    is_local_user = True
+                    break
         
-        return JsonResponse({'status': 'received', 'message_id': message_id})
+        # Save message to database
+        try:
+            # Encrypt sensitive data
+            encrypted_sender = encrypt_data(data['sender'])
+            encrypted_sender_server = encrypt_data(data['sender_server'])
+            encrypted_recipient_beam_number = encrypt_data(data['recipient_beam_number'])
+            encrypted_recipient_local_number = encrypt_data(recipient_local_number or '')
+            encrypted_message = encrypt_data(data['message'])
+            encrypted_timestamp = encrypt_data(data['timestamp'])
+            
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO bsm_messages 
+                    (message_id, sender, sender_server, recipient_beam_number, 
+                     recipient_local_number, message, timestamp, status, validation_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    message_id,
+                    encrypted_sender,
+                    encrypted_sender_server,
+                    encrypted_recipient_beam_number,
+                    encrypted_recipient_local_number,
+                    encrypted_message,
+                    encrypted_timestamp,
+                    'received' if is_local_user else 'sent',
+                    'pending_validation'
+                ))
+                conn.commit()
+                
+            print(f"BSM message saved: {message_id} from {data['sender']} to {data['recipient_beam_number']}")
+            
+            # Start validation if it's from another server and we're the recipient
+            if data['sender_server'] != current_server_url and is_local_user:
+                threading.Thread(
+                    target=validate_message_delivery,
+                    args=(message_id, data['sender_server']),
+                    daemon=True
+                ).start()
+            
+            return JsonResponse({
+                'status': 'received', 
+                'message_id': message_id,
+                'local_user': is_local_user
+            })
+            
+        except sqlite3.Error as e:
+            print(f"Database error saving BSM message: {e}")
+            return JsonResponse({'error': f'Database error: {str(e)}'}, status=500)
         
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
+        print(f"Error in bsm_receive_message: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
 @require_http_methods(["GET"])
