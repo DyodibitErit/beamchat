@@ -386,181 +386,213 @@
         <div id="jsResult" style="margin-top: 12px;"></div>
     </div>
     
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const savedTheme = localStorage.getItem('beamTheme');
-            if (savedTheme) {
-                const theme = JSON.parse(savedTheme);
-                document.documentElement.style.setProperty('--primary-color', theme.primary);
-                document.documentElement.style.setProperty('--secondary-color', theme.secondary);
-                document.documentElement.style.setProperty('--background-color', theme.background);
-                document.documentElement.style.setProperty('--text-color', theme.text);
-                document.documentElement.style.setProperty('--border-color', theme.border);
-            }
-            
-            // Display current server information (without protocol)
-            const currentServerInfo = document.getElementById('currentServerInfo');
-            const serverUrl = new URL(window.location.origin);
-            currentServerInfo.textContent = `Server: ${serverUrl.hostname} (${serverUrl.port || '80'})`;
-            
-            // Protocol selection
-            const protocolBtns = document.querySelectorAll('.protocol-btn');
-            const sendBtn = document.getElementById('jsSendBtn');
-            let selectedProtocol = 'http';
-            
-            protocolBtns.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    protocolBtns.forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    selectedProtocol = this.getAttribute('data-protocol');
-                    
-                    // Update send button text and style
-                    updateSendButton();
-                });
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const savedTheme = localStorage.getItem('beamTheme');
+        if (savedTheme) {
+            const theme = JSON.parse(savedTheme);
+            document.documentElement.style.setProperty('--primary-color', theme.primary);
+            document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+            document.documentElement.style.setProperty('--background-color', theme.background);
+            document.documentElement.style.setProperty('--text-color', theme.text);
+            document.documentElement.style.setProperty('--border-color', theme.border);
+        }
+        
+        // Display current server information (without protocol)
+        const currentServerInfo = document.getElementById('currentServerInfo');
+        const serverUrl = new URL(window.location.origin);
+        currentServerInfo.textContent = `Server: ${serverUrl.hostname} (${serverUrl.port || '80'})`;
+        
+        // Protocol selection
+        const protocolBtns = document.querySelectorAll('.protocol-btn');
+        const sendBtn = document.getElementById('jsSendBtn');
+        let selectedProtocol = 'http';
+        
+        protocolBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                protocolBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                selectedProtocol = this.getAttribute('data-protocol');
+                
+                // Update send button text and style
+                updateSendButton();
             });
+        });
+        
+        function updateSendButton() {
+            switch(selectedProtocol) {
+                case 'http':
+                    sendBtn.textContent = 'Send Message via HTTP';
+                    sendBtn.className = 'submit-btn http';
+                    break;
+                case 'https':
+                    sendBtn.textContent = 'Send Message via HTTPS';
+                    sendBtn.className = 'submit-btn https';
+                    break;
+                case 'both':
+                    sendBtn.textContent = 'Send Message via HTTP & HTTPS';
+                    sendBtn.className = 'submit-btn both';
+                    break;
+            }
+        }
+        
+        // Setup JavaScript-based sending for ALL messages
+        const jsResult = document.getElementById('jsResult');
+        const recipientInput = document.getElementById('recipient_beam_number');
+        const messageInput = document.getElementById('message_text');
+        
+        // Check for prefilled recipient from discovery page
+        const prefilledRecipient = sessionStorage.getItem('prefilledRecipient');
+        if (prefilledRecipient) {
+            recipientInput.value = prefilledRecipient;
+            sessionStorage.removeItem('prefilledRecipient');
+        }
+        
+        sendBtn.addEventListener('click', async function() {
+            const recipient = recipientInput.value.trim();
+            const message = messageInput.value.trim();
             
-            function updateSendButton() {
-                switch(selectedProtocol) {
-                    case 'http':
-                        sendBtn.textContent = 'Send Message via HTTP';
-                        sendBtn.className = 'submit-btn http';
-                        break;
-                    case 'https':
-                        sendBtn.textContent = 'Send Message via HTTPS';
-                        sendBtn.className = 'submit-btn https';
-                        break;
-                    case 'both':
-                        sendBtn.textContent = 'Send Message via HTTP & HTTPS';
-                        sendBtn.className = 'submit-btn both';
-                        break;
-                }
+            if (!recipient || !message) {
+                showResult('Please fill in both recipient and message fields.', 'error');
+                return;
             }
             
-            // Setup JavaScript-based sending for ALL messages
-            const jsResult = document.getElementById('jsResult');
-            const recipientInput = document.getElementById('recipient_beam_number');
-            const messageInput = document.getElementById('message_text');
+            if (!recipient.startsWith('+')) {
+                showResult('Beam number must start with + followed by server URL', 'error');
+                return;
+            }
             
-            sendBtn.addEventListener('click', async function() {
-                const recipient = recipientInput.value.trim();
-                const message = messageInput.value.trim();
+            try {
+                sendBtn.disabled = true;
+                sendBtn.textContent = 'Sending...';
                 
-                if (!recipient || !message) {
-                    showResult('Please fill in both recipient and message fields.', 'error');
-                    return;
+                // Parse the beam number to extract server and local number
+                const beamNumber = recipient;
+                let targetServer, localNumber;
+                
+                if (beamNumber.startsWith('+')) {
+                    const parts = beamNumber.substring(1).split(' ');
+                    if (parts.length < 2) {
+                        throw new Error('Invalid beam number format. Use: +server number');
+                    }
+                    targetServer = parts[0];
+                    localNumber = parts.slice(1).join(' ');
+                } else {
+                    throw new Error('Invalid beam number format - must start with +');
                 }
                 
-                if (!recipient.startsWith('+')) {
-                    showResult('Beam number must start with + followed by server URL', 'error');
-                    return;
+                console.log('Sending with protocol:', selectedProtocol);
+                console.log('Target server:', targetServer);
+                console.log('Local number:', localNumber);
+                console.log('Full beam number:', beamNumber);
+                
+                // Prepare the message payload
+                const payload = {
+                    sender: '{{ username }}',
+                    sender_server: window.location.origin,
+                    recipient_beam_number: beamNumber,
+                    message: message,
+                    timestamp: new Date().toISOString(),
+                    message_id: generateMessageId() // Generate unique ID
+                };
+                
+                // Determine target servers based on protocol selection
+                const targetServers = [];
+                
+                if (selectedProtocol === 'http' || selectedProtocol === 'both') {
+                    targetServers.push(`http://${targetServer}`);
+                }
+                if (selectedProtocol === 'https' || selectedProtocol === 'both') {
+                    targetServers.push(`https://${targetServer}`);
                 }
                 
-                try {
-                    sendBtn.disabled = true;
-                    sendBtn.textContent = 'Sending...';
-                    
-                    // Parse the beam number to determine target server
-                    const beamNumber = recipient;
-                    let targetServer, localNumber;
-                    
-                    if (beamNumber.startsWith('+')) {
-                        // Extract server from beam number
-                        const parts = beamNumber.substring(1).split(' ', 1);
-                        if (parts.length < 1) {
-                            throw new Error('Invalid beam number format');
-                        }
-                        targetServer = parts[0];
-                        localNumber = beamNumber.substring(parts[0].length + 2); // +2 for "+" and space
-                    } else {
-                        throw new Error('Invalid beam number format - must start with +');
-                    }
-                    
-                    console.log('Sending with protocol:', selectedProtocol);
-                    console.log('Target server:', targetServer);
-                    console.log('Beam number:', localNumber);
-                    console.log('Full beam number:', beamNumber);
-                    
-                    // Prepare the message payload
-                    const payload = {
-                        sender: '{{ username }}',
-                        sender_server: window.location.origin,
-                        recipient_beam_number: beamNumber,
-                        message: message,
-                        timestamp: new Date().toISOString()
-                    };
-                    
-                    // Determine target servers based on protocol selection
-                    const targetServers = [];
-                    
-                    if (selectedProtocol === 'http' || selectedProtocol === 'both') {
-                        targetServers.push(`http://${targetServer}`);
-                    }
-                    if (selectedProtocol === 'https' || selectedProtocol === 'both') {
-                        targetServers.push(`https://${targetServer}`);
-                    }
-                    
-                    let successCount = 0;
-                    let errorMessages = [];
-                    
-                    // Send to all target servers
-                    for (const targetServerUrl of targetServers) {
-                        try {
-                            console.log('Sending to:', targetServerUrl);
-                            
-                            const response = await fetch(`${targetServerUrl}/bsm/receive`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify(payload)
-                            });
-                            
-                            if (response.ok) {
-                                const result = await response.json();
-                                successCount++;
-                                console.log(`Success to ${targetServerUrl}:`, result);
-                            } else {
-                                const errorText = await response.text();
-                                errorMessages.push(`${targetServerUrl}: ${response.status} - ${errorText}`);
-                                console.error(`Error from ${targetServerUrl}:`, errorText);
-                            }
-                        } catch (error) {
-                            errorMessages.push(`${targetServerUrl}: ${error.message}`);
-                            console.error(`Network error to ${targetServerUrl}:`, error);
-                        }
-                    }
-                    
-                    // Show results
-                    if (successCount > 0) {
-                        let resultMessage = `Message sent successfully to ${successCount} server(s)!`;
-                        if (errorMessages.length > 0) {
-                            resultMessage += `<br>Errors: ${errorMessages.join('; ')}`;
-                        }
-                        showResult(resultMessage, 'success');
+                let successCount = 0;
+                let errorMessages = [];
+                
+                // Send to all target servers
+                for (const targetServerUrl of targetServers) {
+                    try {
+                        console.log('Attempting to send to:', targetServerUrl);
                         
-                        // Clear form on success
-                        recipientInput.value = '';
-                        messageInput.value = '';
-                    } else {
-                        showResult(`Failed to send message to any server. Errors: ${errorMessages.join('; ')}`, 'error');
+                        const response = await fetch(`${targetServerUrl}/bsm/receive`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            successCount++;
+                            console.log(`Success to ${targetServerUrl}:`, result);
+                            
+                            // Also save locally for tracking
+                            await saveMessageLocally(payload);
+                        } else {
+                            const errorText = await response.text();
+                            errorMessages.push(`${targetServerUrl}: ${response.status} - ${errorText}`);
+                            console.error(`Error from ${targetServerUrl}:`, errorText);
+                        }
+                    } catch (error) {
+                        errorMessages.push(`${targetServerUrl}: ${error.message}`);
+                        console.error(`Network error to ${targetServerUrl}:`, error);
                     }
-                    
-                } catch (error) {
-                    console.error('Error sending message:', error);
-                    showResult(`Failed to send message: ${error.message}`, 'error');
-                } finally {
-                    sendBtn.disabled = false;
-                    updateSendButton();
                 }
-            });
-            
-            function showResult(message, type) {
-                jsResult.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
-                setTimeout(() => {
-                    jsResult.innerHTML = '';
-                }, 10000);
+                
+                // Show results
+                if (successCount > 0) {
+                    let resultMessage = `Message sent successfully to ${successCount} server(s)!`;
+                    if (errorMessages.length > 0) {
+                        resultMessage += `<br>Some servers failed: ${errorMessages.join('; ')}`;
+                    }
+                    showResult(resultMessage, 'success');
+                    
+                    // Clear form on success
+                    messageInput.value = '';
+                } else {
+                    showResult(`Failed to send message to any server. Errors: ${errorMessages.join('; ')}`, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Error sending message:', error);
+                showResult(`Failed to send message: ${error.message}`, 'error');
+            } finally {
+                sendBtn.disabled = false;
+                updateSendButton();
             }
         });
-    </script>
+        
+        function showResult(message, type) {
+            jsResult.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => {
+                jsResult.innerHTML = '';
+            }, 10000);
+        }
+        
+        function generateMessageId() {
+            return 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        
+        async function saveMessageLocally(payload) {
+            try {
+                // Save message to local database via backend
+                const response = await fetch('/bsm/receive', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    console.error('Failed to save message locally:', await response.text());
+                }
+            } catch (error) {
+                console.error('Error saving message locally:', error);
+            }
+        }
+    });
+</script>
 </body>
 </html>
