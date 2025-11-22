@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BEAM - Create Group</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary-color: #7289da;
+            --secondary-color: #2c2f33;
+            --border-color: #40444b;
+            --text-color: #ffffff;
+            --light-text: #b9bbbe;
+            --background-color: #23272a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--background-color);
+            padding: 15px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: var(--secondary-color);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .nav-btn:hover {
+            background-color: #5b73c4;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-color);
+            font-weight: bold;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1em;
+            background-color: #40444b;
+            color: var(--text-color);
+        }
+
+        textarea {
+            height: 80px;
+            resize: vertical;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input {
+            width: auto;
+        }
+
+        .emoji-preview {
+            text-align: center;
+            font-size: 3em;
+            margin: 10px 0;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+        }
+
+        .submit-btn {
+            background-color: #43b581;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            border-radius: 4px;
+            width: 100%;
+            font-size: 1em;
+        }
+
+        .submit-btn:hover {
+            background-color: #3ca374;
+        }
+
+        .alert {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .alert-error {
+            background-color: rgba(240, 71, 71, 0.1);
+            border: 1px solid rgba(240, 71, 71, 0.3);
+            color: #f04747;
+        }
+
+        .alert-success {
+            background-color: rgba(67, 181, 129, 0.1);
+            border: 1px solid rgba(67, 181, 129, 0.3);
+            color: #43b581;
+        }
+
+        .emoji-suggestions {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .emoji-suggestion {
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .emoji-suggestion:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+
+            .user-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .nav-btn {
+                width: 100%;
+                margin-top: 10px;
+            }
+
+            h1 {
+                font-size: 1.3em;
+            }
+
+            .emoji-preview {
+                font-size: 2.5em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="user-header">
+            <span style="color: var(--text-color); font-weight: bold;">Create Group</span>
+            <a href="/groups" class="nav-btn">Back to Groups</a>
+        </div>
+
+        <h1>Create New Group</h1>
+
+        {% if error %}
+        <div class="alert alert-error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="alert alert-success">
+            {{ success }}
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="name">Group Name:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description (optional):</label>
+                <textarea id="description" name="description" placeholder="Describe your group..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="emoji_picture">Group Emoji:</label>
+                <input type="text" id="emoji_picture" name="emoji_picture" required maxlength="10"
+                    placeholder="🎉, 👥, 💬, etc.">
+
+                <div class="emoji-suggestions">
+                    <span class="emoji-suggestion" onclick="setEmoji('🎉')">🎉</span>
+                    <span class="emoji-suggestion" onclick="setEmoji('👥')">👥</span>
+                    <span class="emoji-suggestion" onclick="setEmoji('💬')">💬</span>
+                    <span class="emoji-suggestion" onclick="setEmoji('🚀')">🚀</span>
+                    <span class="emoji-suggestion" onclick="setEmoji('🌟')">🌟</span>
+                    <span class="emoji-suggestion" onclick="setEmoji('🔒')">🔒</span>
+                    <span class="emoji-suggestion" onclick="setEmoji('📚')">📚</span>
+                    <span class="emoji-suggestion" onclick="setEmoji('🎮')">🎮</span>
+                </div>
+
+                <div class="emoji-preview" id="emojiPreview">😊</div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Group Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password:</label>
+                <input type="password" id="confirm_password" name="confirm_password" required>
+            </div>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="is_public" name="is_public">
+                    <label for="is_public" style="font-weight: normal;">Make this group public (visible to all
+                        users)</label>
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn">Create Group</button>
+        </form>
+    </div>
+
+    <script>
+        function setEmoji(emoji) {
+            document.getElementById('emoji_picture').value = emoji;
+            updateEmojiPreview();
+        }
+
+        function updateEmojiPreview() {
+            const emojiInput = document.getElementById('emoji_picture');
+            const preview = document.getElementById('emojiPreview');
+            preview.textContent = emojiInput.value || '😊';
+        }
+
+        // Initialize emoji preview
+        document.addEventListener('DOMContentLoaded', function () {
+            updateEmojiPreview();
+
+            // Load saved theme
+            const savedTheme = localStorage.getItem('beamTheme');
+            if (savedTheme) {
+                try {
+                    const theme = JSON.parse(savedTheme);
+                    document.documentElement.style.setProperty('--primary-color', theme.primary || '#7289da');
+                    document.documentElement.style.setProperty('--secondary-color', theme.secondary || '#2c2f33');
+                    document.documentElement.style.setProperty('--background-color', theme.background || '#23272a');
+                    document.documentElement.style.setProperty('--text-color', theme.text || '#ffffff');
+                    document.documentElement.style.setProperty('--border-color', theme.border || '#40444b');
+                } catch (e) {
+                    console.log('Error loading theme:', e);
+                }
+            }
+        });
+
+        // Update preview when typing
+        document.getElementById('emoji_picture').addEventListener('input', updateEmojiPreview);
+    </script>
+</body>
+
+</html>

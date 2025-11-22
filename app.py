@@ -277,7 +277,7 @@ def init_database():
             FOREIGN KEY (username) REFERENCES users (username)
         )
     ''')
-    
+
     # BSM messages table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS bsm_messages (
@@ -300,6 +300,50 @@ def init_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             content TEXT NOT NULL,
             updated_at TEXT NOT NULL
+        )
+    ''')
+    
+    # Groups table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            password_hash TEXT NOT NULL,
+            emoji_picture TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            is_public INTEGER DEFAULT 0,
+            FOREIGN KEY (created_by) REFERENCES users (username)
+        )
+    ''')
+
+    # Group members table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS group_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            joined_at TEXT NOT NULL,
+            role TEXT DEFAULT 'member',
+            FOREIGN KEY (group_id) REFERENCES groups (id),
+            FOREIGN KEY (username) REFERENCES users (username),
+            UNIQUE(group_id, username)
+        )
+    ''')
+
+    # Group messages table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS group_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            filename TEXT,
+            file_url TEXT,
+            FOREIGN KEY (group_id) REFERENCES groups (id),
+            FOREIGN KEY (username) REFERENCES users (username)
         )
     ''')
     
@@ -340,6 +384,21 @@ class RegisterForm(forms.Form):
 
 class ProfilePictureForm(forms.Form):
     profile_picture = forms.ImageField(required=False)
+
+class CreateGroupForm(forms.Form):
+    name = forms.CharField(max_length=50)
+    description = forms.CharField(widget=forms.Textarea, required=False)
+    password = forms.CharField(widget=forms.PasswordInput)
+    confirm_password = forms.CharField(widget=forms.PasswordInput)
+    emoji_picture = forms.CharField(max_length=10, required=True)
+    is_public = forms.BooleanField(required=False, initial=False)
+
+class JoinGroupForm(forms.Form):
+    password = forms.CharField(widget=forms.PasswordInput)
+
+class GroupMessageForm(forms.Form):
+    message = forms.CharField(widget=forms.Textarea, required=False)
+    file = forms.FileField(required=False)
 
 def check_bsm_agreement():
     """Check if BSM A2A agreement has been accepted"""
@@ -472,6 +531,310 @@ def create_bsm_agreement_file():
         f.write(agreement_content)
     
     print("BSM A2A agreement file created: bsm_agreement.txt")
+
+def create_group(name, description, password, emoji_picture, created_by, is_public=False):
+    """Create a new group"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if group name already exists
+            cursor.execute('SELECT id FROM groups WHERE name = ?', (name,))
+            if cursor.fetchone():
+                return False, "Group name already exists"
+            
+            # Create group
+            encrypted_name = encrypt_data(name)
+            encrypted_description = encrypt_data(description) if description else None
+            encrypted_emoji = encrypt_data(emoji_picture)
+            
+            cursor.execute('''
+                INSERT INTO groups (name, description, password_hash, emoji_picture, created_by, created_at, is_public)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                encrypted_name,
+                encrypted_description,
+                hash_password(password),
+                encrypted_emoji,
+                created_by,
+                encrypt_data(datetime.now().isoformat()),
+                1 if is_public else 0
+            ))
+            
+            group_id = cursor.lastrowid
+            
+            # Add creator as admin
+            cursor.execute('''
+                INSERT INTO group_members (group_id, username, joined_at, role)
+                VALUES (?, ?, ?, ?)
+            ''', (
+                group_id,
+                created_by,
+                datetime.now().isoformat(),
+                'admin'
+            ))
+            
+            conn.commit()
+            return True, f"Group '{name}' created successfully"
+            
+    except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}"
+
+def get_group(group_id):
+    """Get group information with decrypted data"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM groups WHERE id = ?', (group_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return None
+                
+            group_data = dict(row)
+            
+            # Decrypt sensitive fields
+            if group_data.get('name'):
+                group_data['name'] = decrypt_data(group_data['name'])
+            if group_data.get('description'):
+                group_data['description'] = decrypt_data(group_data['description'])
+            if group_data.get('emoji_picture'):
+                group_data['emoji_picture'] = decrypt_data(group_data['emoji_picture'])
+            if group_data.get('created_at'):
+                group_data['created_at'] = decrypt_data(group_data['created_at'])
+                
+            return group_data
+    except Exception as e:
+        print(f"Error decrypting group data: {e}")
+        return None
+
+def get_user_groups(username):
+    """Get all groups that a user is member of"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT g.*, gm.role 
+                FROM groups g
+                JOIN group_members gm ON g.id = gm.group_id
+                WHERE gm.username = ?
+                ORDER BY g.created_at DESC
+            ''', (username,))
+            
+            groups = []
+            for row in cursor.fetchall():
+                group_data = dict(row)
+                
+                # Decrypt sensitive fields
+                if group_data.get('name'):
+                    group_data['name'] = decrypt_data(group_data['name'])
+                if group_data.get('description'):
+                    group_data['description'] = decrypt_data(group_data['description'])
+                if group_data.get('emoji_picture'):
+                    group_data['emoji_picture'] = decrypt_data(group_data['emoji_picture'])
+                if group_data.get('created_at'):
+                    group_data['created_at'] = decrypt_data(group_data['created_at'])
+                    
+                groups.append(group_data)
+                
+            return groups
+    except Exception as e:
+        print(f"Error getting user groups: {e}")
+        return []
+
+def join_group(group_id, username, password):
+    """Join a group with password verification"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get group and verify password
+            cursor.execute('SELECT * FROM groups WHERE id = ?', (group_id,))
+            group_row = cursor.fetchone()
+            
+            if not group_row:
+                return False, "Group not found"
+                
+            group_data = dict(group_row)
+            
+            if not verify_password(group_data['password_hash'], password):
+                return False, "Invalid password"
+            
+            # Check if user is already a member
+            cursor.execute('''
+                SELECT id FROM group_members 
+                WHERE group_id = ? AND username = ?
+            ''', (group_id, username))
+            
+            if cursor.fetchone():
+                return False, "Already a member of this group"
+            
+            # Add user to group
+            cursor.execute('''
+                INSERT INTO group_members (group_id, username, joined_at, role)
+                VALUES (?, ?, ?, ?)
+            ''', (
+                group_id,
+                username,
+                datetime.now().isoformat(),
+                'member'
+            ))
+            
+            conn.commit()
+            return True, "Successfully joined group"
+            
+    except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}"
+
+def is_group_member(group_id, username):
+    """Check if user is member of a group"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id FROM group_members 
+                WHERE group_id = ? AND username = ?
+            ''', (group_id, username))
+            return cursor.fetchone() is not None
+    except sqlite3.Error:
+        return False
+
+def get_group_members(group_id):
+    """Get all members of a group"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT u.username, gm.role, gm.joined_at, u.profile_picture
+                FROM group_members gm
+                JOIN users u ON gm.username = u.username
+                WHERE gm.group_id = ?
+                ORDER BY 
+                    CASE gm.role 
+                        WHEN 'admin' THEN 1
+                        ELSE 2 
+                    END,
+                    gm.joined_at
+            ''', (group_id,))
+            
+            members = []
+            for row in cursor.fetchall():
+                member_data = dict(row)
+                if member_data.get('profile_picture'):
+                    member_data['profile_picture'] = decrypt_data(member_data['profile_picture'])
+                members.append(member_data)
+                
+            return members
+    except Exception as e:
+        print(f"Error getting group members: {e}")
+        return []
+
+def save_group_message(group_id, username, message, filename=None, file_url=None):
+    """Save group message to database"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Encrypt message content
+            encrypted_message = encrypt_data(message)
+            encrypted_timestamp = encrypt_data(timestamp)
+            encrypted_filename = encrypt_data(filename) if filename else None
+            encrypted_file_url = encrypt_data(file_url) if file_url else None
+            
+            cursor.execute('''
+                INSERT INTO group_messages (group_id, username, message, timestamp, filename, file_url)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (
+                group_id,
+                username,
+                encrypted_message,
+                encrypted_timestamp,
+                encrypted_filename,
+                encrypted_file_url
+            ))
+            
+            conn.commit()
+            
+            # Return decrypted message for immediate use
+            return {
+                'group_id': group_id,
+                'username': username,
+                'message': message,
+                'timestamp': timestamp,
+                'filename': filename,
+                'file_url': file_url
+            }
+            
+    except sqlite3.Error as e:
+        print(f"Database error saving group message: {e}")
+        return None
+
+def read_group_messages(group_id):
+    """Read group messages from database with decrypted content"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT username, message, timestamp, filename, file_url
+                FROM group_messages 
+                WHERE group_id = ?
+                ORDER BY timestamp
+            ''', (group_id,))
+            
+            messages = []
+            for row in cursor.fetchall():
+                message_data = dict(row)
+                
+                # Decrypt all encrypted fields
+                if message_data.get('message'):
+                    message_data['message'] = decrypt_data(message_data['message'])
+                if message_data.get('timestamp'):
+                    message_data['timestamp'] = decrypt_data(message_data['timestamp'])
+                if message_data.get('filename'):
+                    message_data['filename'] = decrypt_data(message_data['filename'])
+                if message_data.get('file_url'):
+                    message_data['file_url'] = decrypt_data(message_data['file_url'])
+                
+                messages.append(message_data)
+                
+            return messages
+    except Exception as e:
+        print(f"Error decrypting group messages: {e}")
+        return []
+
+def get_public_groups():
+    """Get all public groups"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM groups WHERE is_public = 1 ORDER BY created_at DESC')
+            
+            groups = []
+            for row in cursor.fetchall():
+                group_data = dict(row)
+                
+                # Decrypt sensitive fields
+                if group_data.get('name'):
+                    group_data['name'] = decrypt_data(group_data['name'])
+                if group_data.get('description'):
+                    group_data['description'] = decrypt_data(group_data['description'])
+                if group_data.get('emoji_picture'):
+                    group_data['emoji_picture'] = decrypt_data(group_data['emoji_picture'])
+                if group_data.get('created_at'):
+                    group_data['created_at'] = decrypt_data(group_data['created_at'])
+                    
+                # Get member count
+                cursor.execute('SELECT COUNT(*) FROM group_members WHERE group_id = ?', (group_data['id'],))
+                group_data['member_count'] = cursor.fetchone()[0]
+                
+                groups.append(group_data)
+                
+            return groups
+    except Exception as e:
+        print(f"Error getting public groups: {e}")
+        return []
 
 
 # User management functions
@@ -1576,6 +1939,202 @@ def bsm_validate_message(request, message_id):
             
     except Exception as e:
         return JsonResponse({'valid': False, 'error': str(e)}, status=500)
+    
+def groups_list_view(request):
+    """View for listing user's groups and public groups"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    user_groups = get_user_groups(username)
+    public_groups = get_public_groups()
+    
+    # Load template from file
+    template_path = "templates/groups/groups_list.html"
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    template = Template(template_content)
+    
+    context = Context({
+        'username': username,
+        'user_groups': user_groups,
+        'public_groups': public_groups
+    })
+    
+    return HttpResponse(template.render(context))
+
+def create_group_view(request):
+    """View for creating new groups"""
+    try:
+        session = get_session(request)
+        if not session or 'username' not in session:
+            return HttpResponseRedirect('/login')
+        
+        username = session['username']
+        error = None
+        success = None
+        
+        if request.method == 'POST':
+            # Get form data directly from request.POST
+            name = request.POST.get('name', '').strip()
+            description = request.POST.get('description', '').strip()
+            password = request.POST.get('password', '')
+            confirm_password = request.POST.get('confirm_password', '')
+            emoji_picture = request.POST.get('emoji_picture', '').strip()
+            is_public = request.POST.get('is_public') == 'on'  # Checkboxes return 'on' when checked
+            
+            # Validation
+            if not name:
+                error = "Group name is required"
+            elif not emoji_picture:
+                error = "Group emoji is required"
+            elif len(emoji_picture) > 1:
+                error = "The emoji picture should contain maximum 1 emoji."
+            elif not password:
+                error = "Password is required"
+            elif password != confirm_password:
+                error = "Passwords do not match"
+            elif len(emoji_picture) > 10:
+                error = "Emoji picture must be 10 characters or less"
+            else:
+                success, message = create_group(name, description, password, emoji_picture, username, is_public)
+                if success:
+                    return HttpResponseRedirect('/groups')
+                else:
+                    error = message
+        
+        # Load template from file
+        template_path = "templates/groups/create_group.html"
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+        template = Template(template_content)
+        
+        context = Context({
+            'username': username,
+            'error': error,
+            'success': success
+        })
+        
+        return HttpResponse(template.render(context))
+    
+    except Exception as e:
+        print(f"ERROR in create_group_view: {str(e)}")
+        import traceback
+        print(f"TRACEBACK: {traceback.format_exc()}")
+        return HttpResponse(f"Internal Server Error: {str(e)}", status=500)
+    
+    except Exception as e:
+        print(f"ERROR in create_group_view: {str(e)}")
+        import traceback
+        print(f"TRACEBACK: {traceback.format_exc()}")
+        return HttpResponse(f"Internal Server Error: {str(e)}", status=500)
+
+def group_chat_view(request, group_id):
+    """View for group chat"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    group = get_group(group_id)
+    
+    if not group:
+        return HttpResponse('Group not found', status=404)
+    
+    # Check if user is member of the group
+    if not is_group_member(group_id, username):
+        return HttpResponseRedirect(f'/groups/join/{group_id}')
+    
+    # Handle group messages
+    if request.method == 'POST':
+        form = GroupMessageForm(request.POST, request.FILES)
+        if form.is_valid():
+            message = form.cleaned_data.get('message', '').strip()
+            uploaded_file = form.cleaned_data.get('file')
+            
+            filename = None
+            file_url = None
+            
+            if uploaded_file:
+                filename, file_url = save_uploaded_file(uploaded_file)
+            
+            if message or filename:
+                save_group_message(group_id, username, message, filename, file_url)
+            
+            return HttpResponseRedirect(f'/groups/{group_id}')
+    else:
+        form = GroupMessageForm()
+    
+    messages = read_group_messages(group_id)
+    members = get_group_members(group_id)
+    
+    # Add profile picture URLs to messages
+    for msg in messages:
+        msg['profile_pic_url'] = get_profile_picture_url(msg['username'])
+    
+    # Load template from file
+    template_path = "templates/groups/group_chat.html"
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    template = Template(template_content)
+    
+    context = Context({
+        'username': username,
+        'group': group,
+        'messages': messages,
+        'members': members,
+        'form': form
+    })
+    
+    return HttpResponse(template.render(context))
+
+def join_group_view(request, group_id):
+    """View for joining a group"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    group = get_group(group_id)
+    
+    if not group:
+        return HttpResponse('Group not found', status=404)
+    
+    # Check if user is already a member
+    if is_group_member(group_id, username):
+        return HttpResponseRedirect(f'/groups/{group_id}')
+    
+    error = None
+    success = None
+    
+    if request.method == 'POST':
+        form = JoinGroupForm(request.POST)
+        if form.is_valid():
+            password = form.cleaned_data['password']
+            success, message = join_group(group_id, username, password)
+            if success:
+                return HttpResponseRedirect(f'/groups/{group_id}')
+            else:
+                error = message
+    else:
+        form = JoinGroupForm()
+    
+    # Load template from file
+    template_path = "templates/groups/join_group.html"
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    template = Template(template_content)
+    
+    context = Context({
+        'username': username,
+        'group': group,
+        'form': form,
+        'error': error,
+        'success': success
+    })
+    
+    return HttpResponse(template.render(context))
 
 def bsm_profile_view(request):
     """View for displaying user's BSM profile and number"""
@@ -2230,6 +2789,10 @@ urlpatterns = [
     path('bsm/validate/<str:message_id>', bsm_validate_message, name='bsm_validate'),
     path('bsm/profile', bsm_profile_view, name='bsm_profile'),
     path('bsm/discovery', bsm_discovery_view, name='bsm_discovery'),
+    path('groups', groups_list_view, name='groups_list'),
+    path('groups/create', create_group_view, name='create_group'),
+    path('groups/<int:group_id>', group_chat_view, name='group_chat'),
+    path('groups/join/<int:group_id>', join_group_view, name='join_group'),
 ]
 
 # Application

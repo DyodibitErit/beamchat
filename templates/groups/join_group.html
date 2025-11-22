@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BEAM - Join {{ group.name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary-color: #7289da;
+            --secondary-color: #2c2f33;
+            --border-color: #40444b;
+            --text-color: #ffffff;
+            --light-text: #b9bbbe;
+            --background-color: #23272a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--background-color);
+            padding: 15px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background-color: var(--secondary-color);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .nav-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .nav-btn:hover {
+            background-color: #5b73c4;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            font-size: 1.5em;
+        }
+
+        .group-info {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .group-emoji {
+            font-size: 4em;
+            margin-bottom: 10px;
+        }
+
+        .group-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .group-description {
+            color: var(--light-text);
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-color);
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1em;
+            background-color: #40444b;
+            color: var(--text-color);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.3);
+        }
+
+        .submit-btn {
+            background-color: #43b581;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+            border-radius: 4px;
+            width: 100%;
+            font-size: 1em;
+        }
+
+        .submit-btn:hover {
+            background-color: #3ca374;
+        }
+
+        .alert {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .alert-error {
+            background-color: rgba(240, 71, 71, 0.1);
+            border: 1px solid rgba(240, 71, 71, 0.3);
+            color: #f04747;
+        }
+
+        .alert-success {
+            background-color: rgba(67, 181, 129, 0.1);
+            border: 1px solid rgba(67, 181, 129, 0.3);
+            color: #43b581;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+
+            .user-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .nav-btn {
+                width: 100%;
+            }
+
+            h1 {
+                font-size: 1.3em;
+            }
+
+            .group-emoji {
+                font-size: 3em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="user-header">
+            <span style="color: var(--text-color); font-weight: bold;">Join Group</span>
+            <a href="/groups" class="nav-btn">Back to Groups</a>
+        </div>
+
+        <div class="group-info">
+            <div class="group-emoji">{{ group.emoji_picture }}</div>
+            <div class="group-name">{{ group.name }}</div>
+            {% if group.description %}
+            <div class="group-description">{{ group.description }}</div>
+            {% endif %}
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="alert alert-success">
+            {{ success }}
+        </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <div class="form-group">
+                <label for="password">Group Password:</label>
+                <input type="password" id="password" name="password" required placeholder="Enter the group password">
+            </div>
+
+            <button type="submit" class="submit-btn">Join Group</button>
+        </form>
+    </div>
+
+    <script>
+        // Load saved theme
+        document.addEventListener('DOMContentLoaded', function () {
+            const savedTheme = localStorage.getItem('beamTheme');
+            if (savedTheme) {
+                const theme = JSON.parse(savedTheme);
+                document.documentElement.style.setProperty('--primary-color', theme.primary);
+                document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                document.documentElement.style.setProperty('--background-color', theme.background);
+                document.documentElement.style.setProperty('--text-color', theme.text);
+                document.documentElement.style.setProperty('--border-color', theme.border);
+            }
+        });
+    </script>
+</body>
+
+</html>
