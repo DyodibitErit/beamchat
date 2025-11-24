@@ -516,6 +516,61 @@
                 max-height: 70vh;
             }
         }
+        .cookie-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    padding: 15px;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    z-index: 1000;
+    font-size: 0.85em;
+}
+
+    .cookie-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .cookie-text {
+        flex: 1;
+        text-align: left;
+    }
+
+    .cookie-btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85em;
+        flex-shrink: 0;
+    }
+
+    .cookie-btn:hover {
+        background-color: #5b73c4;
+    }
+
+    @media (max-width: 768px) {
+        .cookie-content {
+            flex-direction: column;
+            text-align: center;
+            gap: 10px;
+        }
+        
+        .cookie-text {
+            text-align: center;
+        }
+    }
     </style>
 </head>
 
@@ -604,7 +659,35 @@
                 document.documentElement.style.setProperty('--border-color', theme.border);
             }
         });
+        document.addEventListener('DOMContentLoaded', function () {
+                const cookieBanner = document.getElementById('cookieBanner');
+                const cookieAccept = document.getElementById('cookieAccept');
+
+                // Check if user has already accepted cookies
+                const cookiesAccepted = localStorage.getItem('cookiesAccepted');
+
+                if (!cookiesAccepted) {
+                    // Show banner if not accepted
+                    setTimeout(() => {
+                        cookieBanner.style.display = 'block';
+                    }, 1000);
+                }
+
+                // Handle accept button click
+                cookieAccept.addEventListener('click', function () {
+                    localStorage.setItem('cookiesAccepted', 'true');
+                    cookieBanner.style.display = 'none';
+                });
+        });
     </script>
+    <div class="cookie-banner" id="cookieBanner" style="display: none;">
+        <div class="cookie-content">
+            <div class="cookie-text">
+                We use cookies to authenticate you. BeamChat devs do not sell or share cookies with third party members
+            </div>
+            <button class="cookie-btn" id="cookieAccept">I Understand</button>
+        </div>
+    </div>
 </body>
 
 </html>
