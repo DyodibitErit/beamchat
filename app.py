@@ -1940,6 +1940,65 @@ def bsm_validate_message(request, message_id):
     except Exception as e:
         return JsonResponse({'valid': False, 'error': str(e)}, status=500)
     
+def bsm_dashboard_view(request):
+    """View for BSM dashboard with statistics and overview"""
+    # Check if BSM is enabled
+    if not check_bsm_agreement():
+        return HttpResponse('BSM functionality is disabled. Administrator must accept BSM A2A agreement first by creating bsm.a2a file with content "1".', status=403)
+    
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return HttpResponseRedirect('/login')
+    
+    username = session['username']
+    
+    # Get user's beam number
+    beam_number = get_user_beam_number(username)
+    
+    # Remove protocol from server URL for display
+    server_url = get_current_server_url(request)
+    server_without_protocol = server_url.replace('http://', '').replace('https://', '')
+    full_beam_number = f"+{server_without_protocol} {beam_number}" if beam_number else None
+    
+    profile_pic_url = get_profile_picture_url(username)
+    
+    # Get message statistics
+    user_messages = get_user_bsm_messages(username)
+    
+    sent_count = len([msg for msg in user_messages if msg['sender'] == username])
+    received_count = len([msg for msg in user_messages if msg['sender'] != username])
+    delivered_count = len([msg for msg in user_messages if msg.get('status') == 'delivered'])
+    pending_count = len([msg for msg in user_messages if msg.get('status') in ['sent', 'pending']])
+    total_messages = len(user_messages)
+    
+    # Get recent messages (last 5)
+    recent_messages = []
+    for msg in user_messages[-5:][::-1]:  # Get last 5, reversed for newest first
+        recent_msg = msg.copy()
+        recent_msg['profile_pic_url'] = get_profile_picture_url(msg['sender']) if msg['sender'] != username else profile_pic_url
+        recent_messages.append(recent_msg)
+    
+    # Load template from file
+    template_path = "templates/bsm/bsm_dashboard.html"
+    with open(template_path, 'r', encoding='utf-8') as f:
+        template_content = f.read()
+    template = Template(template_content)
+    
+    context = Context({
+        'username': username,
+        'full_beam_number': full_beam_number,
+        'profile_pic_url': profile_pic_url,
+        'current_server': server_without_protocol,
+        'sent_count': sent_count,
+        'received_count': received_count,
+        'delivered_count': delivered_count,
+        'pending_count': pending_count,
+        'total_messages': total_messages,
+        'recent_messages': recent_messages
+    })
+    
+    return HttpResponse(template.render(context))
+    
 def groups_list_view(request):
     """View for listing user's groups and public groups"""
     session = get_session(request)
@@ -2793,6 +2852,7 @@ urlpatterns = [
     path('groups/create', create_group_view, name='create_group'),
     path('groups/<int:group_id>', group_chat_view, name='group_chat'),
     path('groups/join/<int:group_id>', join_group_view, name='join_group'),
+    path('bsm/dashboard', bsm_dashboard_view, name='bsm_dashboard'),
 ]
 
 # Application

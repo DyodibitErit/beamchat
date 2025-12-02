@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BEAM - BSM Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary-color: #7289da;
+            --secondary-color: #2c2f33;
+            --border-color: #40444b;
+            --text-color: #ffffff;
+            --light-text: #b9bbbe;
+            --background-color: #23272a;
+            --success-color: #43b581;
+            --warning-color: #f39c12;
+            --danger-color: #f04747;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--background-color);
+            padding: 15px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: var(--secondary-color);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9em;
+            text-align: center;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .nav-btn:hover {
+            background-color: #5b73c4;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            font-size: 1.5em;
+        }
+
+        h2 {
+            color: var(--primary-color);
+            margin: 20px 0 10px 0;
+            font-size: 1.2em;
+        }
+
+        h3 {
+            color: var(--light-text);
+            margin: 15px 0 8px 0;
+            font-size: 1em;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .dashboard-card {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            min-height: 200px;
+        }
+
+        .stat-card {
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .stat-number {
+            font-size: 3em;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: var(--light-text);
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .action-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9em;
+            text-align: center;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            min-height: 80px;
+        }
+
+        .action-btn:hover {
+            background-color: #5b73c4;
+            transform: translateY(-2px);
+        }
+
+        .action-btn i {
+            font-size: 1.5em;
+        }
+
+        .action-btn.send {
+            background-color: var(--success-color);
+        }
+
+        .action-btn.send:hover {
+            background-color: #3ca374;
+        }
+
+        .action-btn.inbox {
+            background-color: var(--primary-color);
+        }
+
+        .action-btn.inbox:hover {
+            background-color: #5b73c4;
+        }
+
+        .action-btn.discovery {
+            background-color: #9b59b6;
+        }
+
+        .action-btn.discovery:hover {
+            background-color: #8e44ad;
+        }
+
+        .action-btn.profile {
+            background-color: var(--warning-color);
+        }
+
+        .action-btn.profile:hover {
+            background-color: #e67e22;
+        }
+
+        .recent-messages {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+
+        .recent-message {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .recent-message:last-child {
+            border-bottom: none;
+        }
+
+        .message-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary-color);
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-sender {
+            font-weight: bold;
+            color: var(--text-color);
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+
+        .message-preview {
+            color: var(--light-text);
+            font-size: 0.8em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .message-time {
+            color: var(--light-text);
+            font-size: 0.7em;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .server-info {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .server-url {
+            font-family: monospace;
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 8px 10px;
+            border-radius: 4px;
+            margin: 8px 0;
+            word-break: break-all;
+            font-size: 0.9em;
+        }
+
+        .beam-number-display {
+            background: linear-gradient(135deg, var(--primary-color), #5b73c4);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 15px 0;
+            border: 2px solid var(--border-color);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .beam-number-label {
+            color: var(--light-text);
+            font-size: 1em;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .beam-number {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: white;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            margin: 8px 0;
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            background-color: var(--success-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .copy-btn:hover {
+            background-color: #3ca374;
+        }
+
+        .copy-success {
+            color: var(--success-color);
+            font-weight: bold;
+            margin-top: 8px;
+            display: none;
+            text-align: center;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .status-online {
+            background-color: var(--success-color);
+        }
+
+        .status-offline {
+            background-color: var(--danger-color);
+        }
+
+        .status-unknown {
+            background-color: var(--warning-color);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .stat-item-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .stat-item-label {
+            font-size: 0.8em;
+            color: var(--light-text);
+            margin-top: 5px;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .user-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .nav-buttons {
+                justify-content: stretch;
+                margin-top: 10px;
+            }
+
+            .nav-btn {
+                flex: 1;
+                min-width: 0;
+                padding: 10px 8px;
+                font-size: 0.85em;
+            }
+
+            h1 {
+                font-size: 1.3em;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-card {
+                padding: 15px;
+            }
+
+            .stat-number {
+                font-size: 2.5em;
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .action-btn {
+                min-height: 70px;
+                font-size: 0.8em;
+            }
+
+            .beam-number {
+                font-size: 1.5em;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 380px) {
+            .nav-buttons {
+                flex-direction: column;
+            }
+
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .action-btn {
+                min-height: 60px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="user-header">
+            <span style="color: var(--text-color); font-weight: bold;">BSM Dashboard</span>
+            <div class="nav-buttons">
+                <a href="/bsm/send" class="nav-btn">Send Message</a>
+                <a href="/bsm/inbox" class="nav-btn">Inbox</a>
+                <a href="/" class="nav-btn">Back to Chat</a>
+            </div>
+        </div>
+
+        <h1>Between Server Messaging Dashboard</h1>
+
+        <!-- Beam Number Display -->
+        {% if full_beam_number %}
+        <div class="beam-number-display">
+            <div class="beam-number-label">Your Beam Number</div>
+            <div class="beam-number" id="beamNumber">{{ full_beam_number }}</div>
+            <button class="copy-btn" onclick="copyBeamNumber()">Copy Beam Number</button>
+            <div class="copy-success" id="copySuccess">✓ Copied to clipboard!</div>
+        </div>
+        {% endif %}
+
+        <div class="dashboard-grid">
+            <!-- Statistics Card -->
+            <div class="dashboard-card stat-card">
+                <h2>Message Statistics</h2>
+                <div class="stat-number">{{ total_messages }}</div>
+                <div class="stat-label">Total Messages</div>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-item-value">{{ sent_count }}</div>
+                        <div class="stat-item-label">Sent</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-item-value">{{ received_count }}</div>
+                        <div class="stat-item-label">Received</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-item-value">{{ delivered_count }}</div>
+                        <div class="stat-item-label">Delivered</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-item-value">{{ pending_count }}</div>
+                        <div class="stat-item-label">Pending</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions Card -->
+            <div class="dashboard-card">
+                <h2>Quick Actions</h2>
+                <div class="quick-actions">
+                    <a href="/bsm/send" class="action-btn send">
+                        <span>📤</span>
+                        Send Message
+                    </a>
+                    <a href="/bsm/inbox" class="action-btn inbox">
+                        <span>📥</span>
+                        View Inbox
+                    </a>
+                    <a href="/bsm/discovery" class="action-btn discovery">
+                        <span>👥</span>
+                        Discover Users
+                    </a>
+                    <a href="/bsm/profile" class="action-btn profile">
+                        <span>👤</span>
+                        My Profile
+                    </a>
+                </div>
+
+                <div class="server-info">
+                    <h3>Current Server</h3>
+                    <div class="server-url" id="currentServerUrl">{{ current_server }}</div>
+                    <div style="color: var(--light-text); font-size: 0.8em; margin-top: 8px;">
+                        <span class="status-indicator status-online"></span>
+                        BSM Service: Active
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Messages Card -->
+            <div class="dashboard-card">
+                <h2>Recent Messages</h2>
+                <div class="recent-messages">
+                    {% if recent_messages %}
+                    {% for msg in recent_messages %}
+                    <div class="recent-message">
+                        <img src="{{ msg.profile_pic_url }}" alt="{{ msg.sender }}" class="message-avatar">
+                        <div class="message-content">
+                            <div class="message-sender">
+                                {% if msg.sender == username %}
+                                To: {{ msg.recipient_beam_number }}
+                                {% else %}
+                                From: {{ msg.sender }}
+                                {% endif %}
+                            </div>
+                            <div class="message-preview">
+                                {{ msg.message|truncatechars:50 }}
+                            </div>
+                        </div>
+                        <div class="message-time">
+                            {{ msg.timestamp|date:"H:i" }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    <div style="text-align: center; color: var(--light-text); padding: 20px;">
+                        No recent messages
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="text-align: center; margin-top: 10px;">
+                    <a href="/bsm/inbox" style="color: var(--primary-color); font-size: 0.9em;">View All Messages →</a>
+                </div>
+            </div>
+
+            <!-- BSM Guide Card -->
+            <div class="dashboard-card">
+                <h2>BSM Guide</h2>
+                <div style="color: var(--light-text); font-size: 0.9em; line-height: 1.4;">
+                    <p><strong>How to send messages:</strong></p>
+                    <ul style="margin-left: 15px; margin-top: 5px;">
+                        <li>Use format: <code>+server_url xxx-xxx-xxx</code></li>
+                        <li>Protocol is automatically detected</li>
+                        <li>Messages are end-to-end encrypted</li>
+                        <li>Validation ensures message delivery</li>
+                    </ul>
+
+                    <p style="margin-top: 15px;"><strong>Tips:</strong></p>
+                    <ul style="margin-left: 15px; margin-top: 5px;">
+                        <li>Use Discovery to find users</li>
+                        <li>Copy your beam number to share</li>
+                        <li>Check inbox for replies</li>
+                        <li>Messages auto-refresh every 30s</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyBeamNumber() {
+            const beamNumber = document.getElementById('beamNumber').textContent;
+            navigator.clipboard.writeText(beamNumber).then(function () {
+                const successElement = document.getElementById('copySuccess');
+                successElement.style.display = 'block';
+                setTimeout(() => {
+                    successElement.style.display = 'none';
+                }, 3000);
+            }).catch(function (err) {
+                alert('Failed to copy beam number: ' + err);
+            });
+        }
+
+        // Load saved theme
+        document.addEventListener('DOMContentLoaded', function () {
+            const savedTheme = localStorage.getItem('beamTheme');
+            if (savedTheme) {
+                const theme = JSON.parse(savedTheme);
+                document.documentElement.style.setProperty('--primary-color', theme.primary);
+                document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                document.documentElement.style.setProperty('--background-color', theme.background);
+                document.documentElement.style.setProperty('--text-color', theme.text);
+                document.documentElement.style.setProperty('--border-color', theme.border);
+            }
+
+            // Display current server information
+            const currentServerUrl = document.getElementById('currentServerUrl');
+            const serverUrl = new URL(window.location.origin);
+            currentServerUrl.textContent = `${serverUrl.hostname}${serverUrl.port ? ':' + serverUrl.port : ''}`;
+
+            // Auto-refresh dashboard every 30 seconds
+            setTimeout(() => {
+                window.location.reload();
+            }, 30000);
+        });
+    </script>
+</body>
+
+</html>
