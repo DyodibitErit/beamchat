@@ -346,6 +346,46 @@ def init_database():
             FOREIGN KEY (username) REFERENCES users (username)
         )
     ''')
+        # Profile posts table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS profile_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            content TEXT NOT NULL,
+            image_filename TEXT,
+            image_url TEXT,
+            created_at TEXT NOT NULL,
+            likes_count INTEGER DEFAULT 0,
+            comments_count INTEGER DEFAULT 0,
+            FOREIGN KEY (username) REFERENCES users (username)
+        )
+    ''')
+    
+    # Post likes table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS post_likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (post_id) REFERENCES profile_posts (id),
+            FOREIGN KEY (username) REFERENCES users (username),
+            UNIQUE(post_id, username)
+        )
+    ''')
+    
+    # Post comments table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS post_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            post_id INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (post_id) REFERENCES profile_posts (id),
+            FOREIGN KEY (username) REFERENCES users (username)
+        )
+    ''')
     
     # Insert default bulletin content if empty
     cursor.execute('SELECT COUNT(*) FROM bulletin_board')
@@ -399,6 +439,13 @@ class JoinGroupForm(forms.Form):
 class GroupMessageForm(forms.Form):
     message = forms.CharField(widget=forms.Textarea, required=False)
     file = forms.FileField(required=False)
+
+class CreatePostForm(forms.Form):
+    content = forms.CharField(widget=forms.Textarea(attrs={'placeholder': "What's on your mind?", 'rows': 4}), required=False)
+    image = forms.ImageField(required=False)
+
+class AddCommentForm(forms.Form):
+    content = forms.CharField(widget=forms.Textarea(attrs={'placeholder': 'Write a comment...', 'rows': 2}), required=True)
 
 def check_bsm_agreement():
     """Check if BSM A2A agreement has been accepted"""
@@ -531,6 +578,247 @@ def create_bsm_agreement_file():
         f.write(agreement_content)
     
     print("BSM A2A agreement file created: bsm_agreement.txt")
+
+def create_profile_post(username, content, image_filename=None, image_url=None):
+    """Create a new profile post"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Encrypt sensitive data
+            encrypted_content = encrypt_data(content) if content else encrypt_data("")
+            encrypted_image_filename = encrypt_data(image_filename) if image_filename else None
+            encrypted_image_url = encrypt_data(image_url) if image_url else None
+            
+            cursor.execute('''
+                INSERT INTO profile_posts (username, content, image_filename, image_url, created_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                username,
+                encrypted_content,
+                encrypted_image_filename,
+                encrypted_image_url,
+                encrypt_data(datetime.now().isoformat())
+            ))
+            
+            post_id = cursor.lastrowid
+            conn.commit()
+            
+            # Return decrypted post data
+            return {
+                'id': post_id,
+                'username': username,
+                'content': content,
+                'image_filename': image_filename,
+                'image_url': image_url,
+                'created_at': datetime.now().isoformat(),
+                'likes_count': 0,
+                'comments_count': 0,
+                'liked_by_user': False
+            }
+    except sqlite3.Error as e:
+        print(f"Database error creating post: {e}")
+        return None
+    
+def get_profile_posts(username, current_user=None):
+    """Get all posts for a user's profile with decrypted content"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM profile_posts 
+                WHERE username = ? 
+                ORDER BY created_at DESC
+            ''', (username,))
+            
+            posts = []
+            for row in cursor.fetchall():
+                post_data = dict(row)
+                
+                # Decrypt all encrypted fields
+                if post_data.get('content'):
+                    post_data['content'] = decrypt_data(post_data['content'])
+                if post_data.get('image_filename'):
+                    post_data['image_filename'] = decrypt_data(post_data['image_filename'])
+                if post_data.get('image_url'):
+                    post_data['image_url'] = decrypt_data(post_data['image_url'])
+                if post_data.get('created_at'):
+                    post_data['created_at'] = decrypt_data(post_data['created_at'])
+                
+                # Check if current user has liked this post
+                if current_user:
+                    cursor.execute('''
+                        SELECT id FROM post_likes 
+                        WHERE post_id = ? AND username = ?
+                    ''', (post_data['id'], current_user))
+                    post_data['liked_by_user'] = cursor.fetchone() is not None
+                else:
+                    post_data['liked_by_user'] = False
+                
+                # Get comments for this post with usernames and profile pictures
+                cursor.execute('''
+                    SELECT c.*, u.username, u.profile_picture as commenter_pic
+                    FROM post_comments c
+                    JOIN users u ON c.username = u.username
+                    WHERE c.post_id = ?
+                    ORDER BY c.created_at ASC
+                ''', (post_data['id'],))
+                
+                comments = []
+                for comment_row in cursor.fetchall():
+                    comment_data = dict(comment_row)
+                    
+                    # Decrypt comment content and timestamp
+                    if comment_data.get('content'):
+                        comment_data['content'] = decrypt_data(comment_data['content'])
+                    if comment_data.get('created_at'):
+                        comment_data['created_at'] = decrypt_data(comment_data['created_at'])
+                    
+                    # Decrypt profile picture
+                    profile_pic = None
+                    if comment_data.get('commenter_pic'):
+                        try:
+                            profile_pic = decrypt_data(comment_data['commenter_pic'])
+                        except:
+                            profile_pic = None
+                    
+                    # Ensure username is included (it should be from the join)
+                    if 'username' not in comment_data:
+                        comment_data['username'] = comment_row['username']
+                    
+                    comment_data['commenter_pic'] = profile_pic
+                    
+                    comments.append(comment_data)
+                
+                post_data['comments'] = comments
+                posts.append(post_data)
+                
+            return posts
+    except Exception as e:
+        print(f"Error getting profile posts: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+    
+def like_post(post_id, username):
+    """Like a post"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if already liked
+            cursor.execute('''
+                SELECT id FROM post_likes 
+                WHERE post_id = ? AND username = ?
+            ''', (post_id, username))
+            
+            if cursor.fetchone():
+                # Unlike the post
+                cursor.execute('DELETE FROM post_likes WHERE post_id = ? AND username = ?', (post_id, username))
+                cursor.execute('UPDATE profile_posts SET likes_count = likes_count - 1 WHERE id = ?', (post_id,))
+                action = 'unliked'
+            else:
+                # Like the post
+                cursor.execute('''
+                    INSERT INTO post_likes (post_id, username, created_at)
+                    VALUES (?, ?, ?)
+                ''', (post_id, username, datetime.now().isoformat()))
+                cursor.execute('UPDATE profile_posts SET likes_count = likes_count + 1 WHERE id = ?', (post_id,))
+                action = 'liked'
+            
+            conn.commit()
+            
+            # Get updated likes count
+            cursor.execute('SELECT likes_count FROM profile_posts WHERE id = ?', (post_id,))
+            likes_count = cursor.fetchone()['likes_count']
+            
+            return True, action, likes_count
+    except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}", 0
+    
+def add_comment(post_id, username, content):
+    """Add a comment to a post"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Encrypt comment content
+            encrypted_content = encrypt_data(content)
+            
+            cursor.execute('''
+                INSERT INTO post_comments (post_id, username, content, created_at)
+                VALUES (?, ?, ?, ?)
+            ''', (post_id, username, encrypted_content, encrypt_data(datetime.now().isoformat())))
+            
+            # Update comments count
+            cursor.execute('UPDATE profile_posts SET comments_count = comments_count + 1 WHERE id = ?', (post_id,))
+            
+            conn.commit()
+            
+            # Get updated comments count
+            cursor.execute('SELECT comments_count FROM profile_posts WHERE id = ?', (post_id,))
+            comments_count = cursor.fetchone()['comments_count']
+            
+            # Get user's profile picture for the response
+            cursor.execute('SELECT profile_picture FROM users WHERE username = ?', (username,))
+            user_row = cursor.fetchone()
+            
+            # Decrypt the profile picture filename
+            profile_pic = None
+            if user_row and user_row['profile_picture']:
+                try:
+                    profile_pic = decrypt_data(user_row['profile_picture'])
+                except:
+                    profile_pic = None
+            
+            return True, {
+                'username': username,
+                'content': content,
+                'created_at': datetime.now().isoformat(),
+                'created_at_formatted': datetime.now().strftime('%b %d, %Y %I:%M %p'),
+                'profile_pic': profile_pic,
+                'profile_pic_url': f"/profile_pic/{profile_pic}" if profile_pic else get_profile_picture_url(username)
+            }, comments_count
+    except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}", 0
+
+def delete_post(post_id, username):
+    """Delete a post if user is the owner"""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if user owns the post
+            cursor.execute('SELECT username FROM profile_posts WHERE id = ?', (post_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return False, "Post not found"
+            
+            if row['username'] != username and not is_user_admin(username):
+                return False, "You can only delete your own posts"
+            
+            # Get image filename to delete the file
+            cursor.execute('SELECT image_filename FROM profile_posts WHERE id = ?', (post_id,))
+            image_row = cursor.fetchone()
+            if image_row and image_row['image_filename']:
+                image_filename = decrypt_data(image_row['image_filename'])
+                image_path = os.path.join(PROFILE_PICS_DIR, image_filename)
+                if os.path.exists(image_path):
+                    try:
+                        os.remove(image_path)
+                    except OSError:
+                        pass
+            
+            # Delete the post and associated data
+            cursor.execute('DELETE FROM post_likes WHERE post_id = ?', (post_id,))
+            cursor.execute('DELETE FROM post_comments WHERE post_id = ?', (post_id,))
+            cursor.execute('DELETE FROM profile_posts WHERE id = ?', (post_id,))
+            
+            conn.commit()
+            return True, "Post deleted successfully"
+    except sqlite3.Error as e:
+        return False, f"Database error: {str(e)}"
 
 def create_group(name, description, password, emoji_picture, created_by, is_public=False):
     """Create a new group"""
@@ -2496,12 +2784,49 @@ def user_profile_view(request, username):
     if not session or 'username' not in session:
         return HttpResponseRedirect('/login')
     
+    current_user = session['username']
+    
     # Get the requested user's information
     user = get_user(username)
     if not user:
         return HttpResponse('User not found', status=404)
     
     profile_pic_url = get_profile_picture_url(username)
+    
+    # Get profile posts
+    posts = get_profile_posts(username, current_user)
+    
+    # Handle new post creation
+    if request.method == 'POST' and 'create_post' in request.POST and username == current_user:
+        form = CreatePostForm(request.POST, request.FILES)
+        if form.is_valid():
+            content = form.cleaned_data.get('content', '').strip()
+            uploaded_file = form.cleaned_data.get('image')
+            
+            image_filename = None
+            image_url = None
+            
+            if uploaded_file:
+                # Save the image
+                file_ext = os.path.splitext(uploaded_file.name)[1].lower()
+                if file_ext not in ['.jpg', '.jpeg', '.png', '.gif']:
+                    file_ext = '.png'
+                filename = f"post_{username}_{uuid.uuid4().hex[:8]}{file_ext}"
+                filepath = os.path.join(PROFILE_PICS_DIR, filename)
+                
+                with open(filepath, 'wb+') as destination:
+                    for chunk in uploaded_file.chunks():
+                        destination.write(chunk)
+                
+                image_filename = filename
+                image_url = f"/profile_pic/{filename}"
+            
+            if content or image_filename:
+                create_profile_post(username, content, image_filename, image_url)
+            
+            return HttpResponseRedirect(f'/user/{username}')
+    
+    # Handle post interactions via AJAX (these will be handled by separate endpoints)
     
     # Format the registration date
     try:
@@ -2510,6 +2835,10 @@ def user_profile_view(request, username):
     except:
         reg_date_str = 'Unknown'
     
+    # Create forms
+    post_form = CreatePostForm() if username == current_user else None
+    comment_form = AddCommentForm()
+    
     template_path = "templates/profile.html"
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
@@ -2517,11 +2846,123 @@ def user_profile_view(request, username):
     
     context = Context({
         'username': username,
+        'current_user': current_user,
         'profile_pic_url': profile_pic_url,
-        'reg_date_str': reg_date_str
+        'reg_date_str': reg_date_str,
+        'posts': posts,
+        'post_form': post_form,
+        'comment_form': comment_form,
+        'is_own_profile': username == current_user
     })
     
     return HttpResponse(template.render(context))
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def like_post_view(request):
+    """API endpoint to like/unlike a post"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
+    
+    username = session['username']
+    
+    try:
+        data = json.loads(request.body)
+        post_id = data.get('post_id')
+        
+        if not post_id:
+            return JsonResponse({'success': False, 'error': 'Post ID required'}, status=400)
+        
+        success, action, likes_count = like_post(post_id, username)
+        
+        if success:
+            return JsonResponse({
+                'success': True,
+                'action': action,
+                'likes_count': likes_count
+            })
+        else:
+            return JsonResponse({'success': False, 'error': action}, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def add_comment_view(request):
+    """API endpoint to add a comment to a post"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
+    
+    username = session['username']
+    
+    try:
+        data = json.loads(request.body)
+        post_id = data.get('post_id')
+        content = data.get('content', '').strip()
+        
+        if not post_id:
+            return JsonResponse({'success': False, 'error': 'Post ID required'}, status=400)
+        if not content:
+            return JsonResponse({'success': False, 'error': 'Comment content required'}, status=400)
+        
+        success, comment_data, comments_count = add_comment(post_id, username, content)
+        
+        if success:
+            # Format comment data for response
+            comment_data['profile_pic_url'] = f"/profile_pic/{comment_data['profile_pic']}" if comment_data['profile_pic'] else get_profile_picture_url(username)
+            
+            try:
+                comment_date = datetime.fromisoformat(comment_data['created_at'])
+                comment_data['created_at_formatted'] = comment_date.strftime('%b %d, %Y %I:%M %p')
+            except:
+                comment_data['created_at_formatted'] = comment_data['created_at']
+            
+            return JsonResponse({
+                'success': True,
+                'comment': comment_data,
+                'comments_count': comments_count
+            })
+        else:
+            return JsonResponse({'success': False, 'error': comment_data}, status=500)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def delete_post_view(request):
+    """API endpoint to delete a post"""
+    session = get_session(request)
+    if not session or 'username' not in session:
+        return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
+    
+    username = session['username']
+    
+    try:
+        data = json.loads(request.body)
+        post_id = data.get('post_id')
+        
+        if not post_id:
+            return JsonResponse({'success': False, 'error': 'Post ID required'}, status=400)
+        
+        success, message = delete_post(post_id, username)
+        
+        if success:
+            return JsonResponse({'success': True, 'message': message})
+        else:
+            return JsonResponse({'success': False, 'error': message}, status=400)
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 def home_view(request):
     session = get_session(request)
@@ -2714,6 +3155,9 @@ urlpatterns = [
     path('groups/<int:group_id>', group_chat_view, name='group_chat'),
     path('groups/join/<int:group_id>', join_group_view, name='join_group'),
     path('bsm/dashboard', bsm_dashboard_view, name='bsm_dashboard'),
+    path('api/post/like', like_post_view, name='like_post'),
+    path('api/post/comment', add_comment_view, name='add_comment'),
+    path('api/post/delete', delete_post_view, name='delete_post'),
 ]
 
 # Application
