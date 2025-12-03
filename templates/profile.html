@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>BEAM - {{ username }}'s Profile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root {
+            --primary-color: #7289da;
+            --secondary-color: #2c2f33;
+            --border-color: #40444b;
+            --text-color: #ffffff;
+            --light-text: #b9bbbe;
+            --background-color: #23272a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--background-color);
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: var(--secondary-color);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .user-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .back-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+
+        .back-btn:hover {
+            background-color: #5b73c4;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+        }
+
+        .profile-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .profile-picture {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 20px;
+            border: 3px solid var(--primary-color);
+        }
+
+        .user-info {
+            text-align: center;
+            color: var(--text-color);
+        }
+
+        .username {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .reg-date {
+            color: var(--light-text);
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="user-header">
+            <a href="/" class="back-btn">Back to Chat</a>
+        </div>
+
+        <div class="profile-section">
+            <img src="{{ profile_pic_url }}" alt="Profile Picture" class="profile-picture">
+
+            <div class="user-info">
+                <div class="username">{{ username }}</div>
+                <div class="reg-date">Member since {{ reg_date_str }}</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load saved theme from localStorage
+        document.addEventListener('DOMContentLoaded', function () {
+            const savedTheme = localStorage.getItem('beamTheme');
+            if (savedTheme) {
+                const theme = JSON.parse(savedTheme);
+
+                // Apply theme to CSS variables
+                document.documentElement.style.setProperty('--primary-color', theme.primary);
+                document.documentElement.style.setProperty('--secondary-color', theme.secondary);
+                document.documentElement.style.setProperty('--background-color', theme.background);
+                document.documentElement.style.setProperty('--text-color', theme.text);
+                document.documentElement.style.setProperty('--border-color', theme.border);
+            }
+        });
+    </script>
+</body>
+
+</html>
